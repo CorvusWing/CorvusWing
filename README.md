@@ -189,6 +189,11 @@ Open Claude Code in your project folder and run the `start-here` skill (type `/s
 up, writes the plan with you, and names one small first task. It does not build anything in that
 session. That is on purpose: the first real work goes better on top of the rails.
 
+**How long the first setup takes depends on the project.** A new project goes quickly. A large existing
+one can take hours: the sealed copy of your project, reading your code and the notes you already keep,
+and bringing their open items into the plan, with your yes before anything moves. Get comfortable and
+give it the time. It is done once, and every session after it starts from what it set up.
+
 Then, if the project has no single command that runs every check, run the `gates` skill next
 (`/gates`). It builds the suite one part per session; the first part alone gives every later task a
 "done" anyone can check. And whenever you want to watch the project on one page, ask for the bench
