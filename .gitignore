@@ -1,0 +1,12 @@
+# Operating-system clutter
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+
+# Anything a local run leaves behind
+node_modules/
+*.log
