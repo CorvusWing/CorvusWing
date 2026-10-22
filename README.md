@@ -1,4 +1,4 @@
-![CorvusWing, by PROPHET: Plan, Record, Order, Prove, Hand off, Evolve, Trust. Predictable runs of probabilistic helpers, every time.](skills/bench/assets/prophet-banner.jpg)
+![CorvusWing: a deterministic process around a probabilistic model. Ten skills, twelve templates and the bench, for Claude Code and every coding agent that reads AGENTS.md. Beside it, the bench on an example project.](skills/bench/assets/readme-hero.png)
 
 # CorvusWing
 
@@ -21,6 +21,8 @@ not a verdict on you. It mostly comes from a few missing brakes. Each one is sma
 them.
 
 ## The PROPHET method
+
+![CorvusWing, by PROPHET: Plan, Record, Order, Prove, Hand off, Evolve, Trust. Predictable runs of probabilistic helpers, every time.](skills/bench/assets/prophet-banner.jpg)
 
 Seven steps, one for each letter. Each is done by a skill in this kit.
 
@@ -69,7 +71,7 @@ the part you can check.
    decisions, and a Message Claude box whose notes the agent reads at its next step. A desktop icon
    opens it with one click; its Stop button, or simply closing the page, shuts it down.
 
-![The bench on an example project](skills/bench/assets/bench.png)
+![The bench on an example project, each panel pinned to the file it reads: the header from the ledger, the notes' size and git; What's true now from STATE.md; Next from HANDOFF.md; Message Claude writes INBOX.md; the tasks from PLAN.md; the checks from .gates.jsonl; the decisions from DECISIONS.md.](skills/bench/assets/readme-bench.png)
 
 ## How to ask: the opener
 
@@ -99,7 +101,7 @@ In the reply, the agent should name the parts it used; if it does not, ask.
 | `skills/holding-the-goal/` | Questions to run before saying "cannot", and before saying "we should fix this". |
 | `skills/working-discipline/` | Habits for arriving in a codebase, reading, measuring, building and reporting. |
 | `skills/gates/` | Builds the check suite: one command, a ledger, a proof that each check can fail, and a progress window. One part per session, after start-here. |
-| `skills/bench/` | The bench: `serve.mjs` (a small server, Node 18 or newer, no packages), `bench.html` (the page), `shortcut.mjs` (puts its icon on the desktop), and the bench's images. |
+| `skills/bench/` | The bench: `serve.mjs` (a small server, Node 18 or newer, no packages), `bench.html` (the page), `shortcut.mjs` (puts its icon on the desktop), and its images: the icon, the screenshot, and this README's pictures. |
 | `templates/` | Short starting versions of the loop documents: PLAN, STATE, HANDOFF, DECISIONS, PICKUP, FILEMAP, ORDER, REPORT, LESSONS, AGENTS and CLAUDE, plus the archive's index (ARCHIVE-README). |
 | `LICENSE` | The MIT License. |
 | `NOTICE.md` | What the license covers, and the names and marks it does not. |
@@ -137,6 +139,8 @@ SKILL.md together.
 
 ## What it does to your project, and what it never does
 
+![Nothing is lost: your original is sealed first, a zip and every file's fingerprint, read-only; the work happens in a checked working copy; and every task runs on its own branch, merged or thrown away, with a tag before every unattended run.](skills/bench/assets/readme-safety.png)
+
 - **First, your original is kept safe.** Before anything changes, `start-here` makes a sealed snapshot
   of your project (a zip, with a list of every file's fingerprint, checked file by file and then made
   read-only) and a clean working copy beside it, checked the same way. Your original folder is never
@@ -158,6 +162,8 @@ SKILL.md together.
 
 ## The daily loop, in six steps
 
+![The daily loop in six steps around the notes every session reads first: arrive, pick one task, think first, order then branch, work then review, close; then the next session.](skills/bench/assets/readme-loop.png)
+
 1. **Arrive.** Paste PICKUP.md into a new session. The agent checks the notes against the repository
    first: `git status`, `git log -3`, and one test whose number the notes state. Then it reads any
    waiting messages in INBOX.md.
@@ -173,6 +179,8 @@ SKILL.md together.
 6. **Close.** Run `session-close`: commit, mark the task done in PLAN.md, update STATE.md and
    HANDOFF.md, add to DECISIONS.md, move what finished into `archive/` with a pointer, check the notes'
    size, and write PICKUP.md with `compaction`.
+
+![Across the automatic summary: at about 85% of the session's room, context-guard starts nothing new and compaction writes PICKUP.md; the summary keeps what was written down; the next session tests the note with git status, git log -3 and one test before trusting it.](skills/bench/assets/readme-summary.png)
 
 ## Start here
 
