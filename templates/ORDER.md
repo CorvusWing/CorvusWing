@@ -38,7 +38,7 @@ Example: time the export of 10,000 rows from the command line. If it already tak
 - the probe cancels the task;
 - you need a file outside scope;
 - the change is heading past twice the size budget;
-- the same test still fails after 3 attempts;
+- the same check fails a second time in a row (two strikes; the `two-strikes` skill keeps the count);
 - a test looks wrong (say why; do not change it);
 - you are unsure what the goal means.
 

@@ -14,6 +14,8 @@ Done when: <a check anyone can run, and what it should print or show>
 
 A premise is something the whole plan assumes and nobody has measured yet. Test the riskiest one first, with the cheapest probe that could prove it false. Write the cancel line before the probe runs. If a probe fails, the plan changes before anything is built on it.
 
+The `decide-first` skill is the tool for these rows: it keeps each premise's cancel line, probe output and decision in `decisions/<name>.json`, in that order, and refuses a record that breaks it. Put the record's name in the Status column.
+
 | Id | Premise | The probe that could cancel it | Cancel line (written before the probe) | Status (dated) |
 |---|---|---|---|---|
 | Example: P-1 | Most files users import are under 10,000 rows | count the rows in last month's uploads | if more than 10% pass 10,000 rows, milestone M-2 moves to first | untested |

@@ -137,8 +137,10 @@ command away from coming back to where you were.
 
 **13. Write the stop condition and the caps before starting.**
 
-- **Stop condition:** "Stop when `pytest tests/test_export.py` passes, or after 3 failed
-  attempts at the same test, or if any file outside scope needs changing."
+- **Stop condition:** "Stop when `pytest tests/test_export.py` passes, or when the same test
+  fails a second time in a row, or if any file outside scope needs changing." Two strikes, not
+  three: the `two-strikes` skill keeps the count, and its `run` command can wrap the test so the
+  count cannot be forgotten.
 - **Time cap:** a number of minutes. Start at 30. Raise it only after several runs that
   stayed in scope.
 - **Budget cap:** a spend limit or a turn limit. Claude Code's print mode

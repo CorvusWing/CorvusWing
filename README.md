@@ -1,4 +1,4 @@
-![CorvusWing: a deterministic process around a probabilistic model. Fourteen skills, twelve templates and the bench, for Claude Code and every coding agent that reads AGENTS.md. Beside it, the bench on an example project.](skills/bench/assets/readme-hero.png)
+![CorvusWing, a kit for coding agents: a deterministic process around a probabilistic model, for Claude Code and every coding agent that reads AGENTS.md. Beside it, the bench on an example project.](skills/bench/assets/readme-hero.png)
 
 # CorvusWing
 
@@ -28,10 +28,10 @@ Seven steps, one for each letter. Each is done by a skill in this kit.
 
 | Step | What it means | Done by |
 |---|---|---|
-| **P**lan | Start at "done" and work backwards to today; test the riskiest assumption first, with the cheapest probe that could prove it false. | `start-here` |
+| **P**lan | Start at "done" and work backwards to today; test the riskiest assumption first, with the cheapest probe that could prove it false. | `start-here`, `decide-first` |
 | **R**ecord | What is true, what is next and why things are the way they are live in short files every session reads, never in anyone's memory. | `session-close` |
-| **O**rder | Every task gets a written order first: its files, a size budget, a done-criterion, a cancel condition, and its own git branch. | `scope-guard` |
-| **P**rove | "It works" means a check anyone can rerun, and every check is proven able to fail. | `gates`, `solution-integrity` |
+| **O**rder | Every task gets a written order first: its files, a size budget, a done-criterion, a cancel condition, and its own git branch; the second failure in a row of the same check stops it. | `scope-guard`, `two-strikes` |
+| **P**rove | "It works" means a check anyone can rerun, and every check is proven able to fail; a test is never weakened without a written reason, and a piece nobody has designed is compared on rules frozen before any candidate. | `gates`, `solution-integrity`, `test-freeze`, `bake-off` |
 | **H**and off | A session ends, or is summarized to free up room, without losing what cannot be worked out again; the next one tests the note before trusting it. | `compaction`, `context-guard` |
 | **E**volve | A mistake becomes a rule the same day, with its reason; a "cannot" is checked before it closes a door. | `holding-the-goal`, `working-discipline` |
 | **T**rust | Trust is earned by checking: every number on the bench comes from a file, and anything missing shows as missing. | `bench` |
@@ -70,10 +70,11 @@ the part you can check.
    page: what is true now, what is next, the tasks open, upcoming and closed, the checks, the newest
    decisions, and a Message Claude box whose notes the agent reads at its next step. A desktop icon
    opens it with one click; its Stop button, or simply closing the page, shuts it down.
-10. **An agent loops on the same failure.** `two-strikes` counts each check's failures in a ledger. The second
-    failure of the same check stops the step and asks for a report, instead of a third variation.
-11. **A changed test quietly weakens the suite.** `test-freeze` refuses a commit that removes lines from an existing
-    test beside a code change, unless its message says why in a `TEST-CHANGE:` line.
+10. **An agent loops on the same failure.** `two-strikes` counts each check's failures in a row in a ledger. The
+    second failure in a row of the same check stops the step and asks for a report, instead of a third variation;
+    put it in front of the command and it records every pass and failure itself.
+11. **A changed test quietly weakens the suite.** `test-freeze` refuses a commit that changes, skips or deletes an
+    existing test, with or without code beside it, unless its message says why in a `TEST-CHANGE:` line.
 12. **A design gets built before anyone measured it.** `decide-first` makes the cancel line get written first, keeps
     the measurement, and refuses a record that picks a build after the cancel line was met.
 13. **A piece nobody has designed gets its tests bent to fit.** `bake-off` fixes the order: the rules as tests, a
@@ -111,11 +112,11 @@ In the reply, the agent should name the parts it used; if it does not, ask.
 | `skills/working-discipline/` | Habits for arriving in a codebase, reading, measuring, building and reporting. |
 | `skills/gates/` | Builds the check suite: one command, a ledger, a proof that each check can fail, and a progress window. One part per session, after start-here. |
 | `skills/bench/` | The bench: `serve.mjs` (a small server, Node 18 or newer, no packages), `bench.html` (the page), `shortcut.mjs` (puts its icon on the desktop), and its images: the icon, the screenshot, and this README's pictures. |
-| `skills/two-strikes/` | Stops a step after its second failure of the same check. `scripts/two_strikes.py`: `strike`, `reset`, `ledger`, and a self-test. |
-| `skills/test-freeze/` | Refuses a commit that changes an existing test beside code without a `TEST-CHANGE:` reason. `scripts/test_freeze.py`: `check` over a range of commits, and a self-test. |
+| `skills/two-strikes/` | Stops a step after the second failure in a row of the same check. `scripts/two_strikes.py`: `run`, `strike`, `pass`, `reset`, `ledger`, and a self-test. |
+| `skills/test-freeze/` | Refuses a commit that changes or deletes an existing test without a `TEST-CHANGE:` reason. `scripts/test_freeze.py`: `check` over a range of commits, commit by commit or `--net`, and a self-test. |
 | `skills/decide-first/` | Makes a design question get its cancel line, a measurement and a decision with a reason, in that order, before code. `scripts/decide_first.py`: `open`, `probe`, `decide`, `check`, and a self-test. |
-| `skills/bake-off/` | Builds a piece nobody has designed, in a fixed order: rules, a dumb control, candidates with kill lines, a scoreboard, a pick. `scripts/bake_off.py`: `check`, `scoreboard`, and a self-test. |
-| `tests/` | The kit's own tests, in Python's standard `unittest`. Each script's self-test runs green, and each of its breaks turns only its own row red. |
+| `skills/bake-off/` | Builds a piece nobody has designed, in a fixed order: frozen rules, a dumb control, candidates on their own branches with kill lines, a scoreboard, a pick. `scripts/bake_off.py`: `check`, `scoreboard`, and a self-test. |
+| `tests/` | The kit's own tests, in Python's standard `unittest`. Each script's self-test runs green, each of its breaks turns only its expected row red, and each script runs once end to end from the command line. `.github/workflows/test.yml` runs them on Linux, macOS and Windows with Python 3.8 and 3.12. |
 | `templates/` | Short starting versions of the loop documents: PLAN, STATE, HANDOFF, DECISIONS, PICKUP, FILEMAP, ORDER, REPORT, LESSONS, AGENTS and CLAUDE, plus the archive's index (ARCHIVE-README). |
 | `LICENSE` | The MIT License. |
 | `NOTICE.md` | What the license covers, and the names and marks it does not. |
@@ -150,7 +151,10 @@ A skill is a folder with a SKILL.md file in it. Claude Code looks for skills in 
 
 The four scripts (`two-strikes`, `test-freeze`, `decide-first`, `bake-off`) need Python 3.8 or newer and,
 for two of them, git. They use no packages. Python is `python3` on macOS and Linux, and `python` on Windows.
-To check the kit itself, from the folder this repository lives in:
+Once installed for every project, each script is at `~/.claude/skills/<skill>/scripts/`. Commit what they
+write into a project with the rest of its notes: `strikes.jsonl` (two-strikes), `decisions/` (decide-first)
+and `bake-off/` (bake-off); test-freeze writes nothing there. To check the kit itself, from the folder this
+repository lives in:
 
     python3 -m unittest discover -s tests
 
@@ -190,12 +194,15 @@ SKILL.md together.
 2. **Pick one task.** Take the top item from HANDOFF.md, which comes from the plan in PLAN.md. One task
    per session is plenty.
 3. **Think before building.** Run `solution-integrity` on it. Write the probe that could cancel the
-   task (a quick check that would show the task is not needed) and run it first.
+   task (a quick check that would show the task is not needed) and run it first. For an open design
+   question, `decide-first` keeps the cancel line, the measurement and the decision in that order; for a
+   piece nobody has designed yet, `bake-off` sets the order its candidates are built and judged in.
 4. **Write the order, then branch.** Fill in ORDER.md: files in scope, size budget, done-criterion,
    stop conditions. Commit, then `git switch -c task/<id>-<short-name>`.
-5. **Let the agent work, then review.** It stops when done, or when it needs to go outside scope. You
-   check `git diff --stat` against the budget, read the diff, run the tests and read REPORT.md. Then
-   merge it, or throw the branch away.
+5. **Let the agent work, then review.** It stops when done, when it needs to go outside scope, or when
+   the same check fails twice in a row (`two-strikes`). You check `git diff --stat` against the budget,
+   read the diff, run the tests, run `test-freeze` over the branch to see every test it changed and
+   why, and read REPORT.md. Then merge it, or throw the branch away.
 6. **Close.** Run `session-close`: commit, mark the task done in PLAN.md, update STATE.md and
    HANDOFF.md, add to DECISIONS.md, move what finished into `archive/` with a pointer, check the notes'
    size, and write PICKUP.md with `compaction`.
