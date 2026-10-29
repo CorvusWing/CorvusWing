@@ -1,0 +1,34 @@
+# The kit's own tests: the unit tests, then each script's self-test, on Linux, macOS and Windows with the
+# oldest Python the scripts promise (3.8) and a current one (3.12). uv installs each Python, because the
+# runners' own Python 3.8 is not available on every system.
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.8", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install Python ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+      - name: Unit tests
+        run: uv run --no-project --python ${{ matrix.python }} python -m unittest discover -s tests -v
+      - name: Each script's self-test
+        shell: bash
+        run: |
+          for script in test-freeze/scripts/test_freeze.py two-strikes/scripts/two_strikes.py \
+                        decide-first/scripts/decide_first.py bake-off/scripts/bake_off.py; do
+            uv run --no-project --python ${{ matrix.python }} python "skills/$script" --self-test
+          done
