@@ -47,6 +47,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+TOOL = "test-freeze"  # the name this script signs its words with
 REFUSED_CODE = 78  # the checker could not look: git is missing, or the range is unreadable or empty
 NOWIN = 0x08000000 if os.name == "nt" else 0  # no console window opens for git on Windows
 TEST_PATTERNS = (
@@ -289,8 +290,8 @@ def remove_tree(path):
     else:
         shutil.rmtree(str(path), onerror=again)
     if failed:
-        sys.stderr.write("test-freeze: cleanup could not remove %d item(s) of the scratch folder %s; the first: %s\n"
-                         % (len(failed), path, failed[0]))
+        sys.stderr.write("%s: cleanup could not remove %d item(s) of the scratch folder %s; the first: %s\n"
+                         % (TOOL, len(failed), path, failed[0]))
 
 
 def build_repo(folder, commits):

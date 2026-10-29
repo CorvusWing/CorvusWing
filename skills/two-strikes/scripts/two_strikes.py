@@ -43,6 +43,7 @@ import tempfile
 import time
 from pathlib import Path
 
+TOOL = "two-strikes"  # the name this script signs its words with
 REFUSED_CODE = 78  # the ledger cannot be read or written, or the command cannot be started
 FAILED, BAD_USE, STOPPED = 1, 2, 3
 STOP_AT = 2
@@ -198,7 +199,7 @@ def reset(path, check, note=""):
 
 
 def program(command):
-    """On Windows a command named without its extension (npm, pytest) is found the way the shell would find it."""
+    """On Windows a program named without its extension (npm, pytest) is found the way the shell would find it."""
     if os.name == "nt" and command:
         found = shutil.which(command[0])
         if found:
@@ -255,8 +256,8 @@ def ledger(path):
 # -- cleanup and the self-test's cache ---------------------------------------------------------------------------------------
 
 def remove_tree(path):
-    """Removes a scratch folder; a read-only item has that flag cleared and is tried once more, and anything that
-    still will not go is said out loud."""
+    """Removes a scratch folder. Git marks its object files read-only, which stops a plain delete on Windows, so a
+    refused item has that flag cleared and is tried once more; anything that still will not go is said out loud."""
     failed = []
 
     def again(func, item, _exc):
@@ -273,8 +274,8 @@ def remove_tree(path):
     else:
         shutil.rmtree(str(path), onerror=again)
     if failed:
-        sys.stderr.write("two-strikes: cleanup could not remove %d item(s) of the scratch folder %s; the first: %s\n"
-                         % (len(failed), path, failed[0]))
+        sys.stderr.write("%s: cleanup could not remove %d item(s) of the scratch folder %s; the first: %s\n"
+                         % (TOOL, len(failed), path, failed[0]))
 
 
 def proven():

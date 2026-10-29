@@ -44,6 +44,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+TOOL = "decide-first"  # the name this script signs its words with
 REFUSED_CODE = 78
 OUTPUT_LIMIT = 4000  # characters of probe output kept in the record; the rest is cut and marked
 CHOICES = ("build", "stop", "other")
@@ -306,8 +307,8 @@ def check(folder, name):
 # -- cleanup and the self-test's cache -----------------------------------------------------------------------------------------
 
 def remove_tree(path):
-    """Removes a scratch folder; a read-only item has that flag cleared and is tried once more, and anything that
-    still will not go is said out loud."""
+    """Removes a scratch folder. Git marks its object files read-only, which stops a plain delete on Windows, so a
+    refused item has that flag cleared and is tried once more; anything that still will not go is said out loud."""
     failed = []
 
     def again(func, item, _exc):
@@ -324,8 +325,8 @@ def remove_tree(path):
     else:
         shutil.rmtree(str(path), onerror=again)
     if failed:
-        sys.stderr.write("decide-first: cleanup could not remove %d item(s) of the scratch folder %s; the first: %s\n"
-                         % (len(failed), path, failed[0]))
+        sys.stderr.write("%s: cleanup could not remove %d item(s) of the scratch folder %s; the first: %s\n"
+                         % (TOOL, len(failed), path, failed[0]))
 
 
 def proven():
