@@ -1,4 +1,4 @@
-![CorvusWing: a deterministic process around a probabilistic model. Ten skills, twelve templates and the bench, for Claude Code and every coding agent that reads AGENTS.md. Beside it, the bench on an example project.](skills/bench/assets/readme-hero.png)
+![CorvusWing: a deterministic process around a probabilistic model. Fourteen skills, twelve templates and the bench, for Claude Code and every coding agent that reads AGENTS.md. Beside it, the bench on an example project.](skills/bench/assets/readme-hero.png)
 
 # CorvusWing
 
@@ -70,6 +70,15 @@ the part you can check.
    page: what is true now, what is next, the tasks open, upcoming and closed, the checks, the newest
    decisions, and a Message Claude box whose notes the agent reads at its next step. A desktop icon
    opens it with one click; its Stop button, or simply closing the page, shuts it down.
+10. **An agent loops on the same failure.** `two-strikes` counts each check's failures in a ledger. The second
+    failure of the same check stops the step and asks for a report, instead of a third variation.
+11. **A changed test quietly weakens the suite.** `test-freeze` refuses a commit that removes lines from an existing
+    test beside a code change, unless its message says why in a `TEST-CHANGE:` line.
+12. **A design gets built before anyone measured it.** `decide-first` makes the cancel line get written first, keeps
+    the measurement, and refuses a record that picks a build after the cancel line was met.
+13. **A piece nobody has designed gets its tests bent to fit.** `bake-off` fixes the order: the rules as tests, a
+    dumb control marked where it passes, candidates with kill lines, a scoreboard that lists changes instead of
+    failing them, and a pick with a reason.
 
 ![The bench on an example project, each panel pinned to the file it reads: the header from the ledger, the notes' size and git; What's true now from STATE.md; Next from HANDOFF.md; Message Claude writes INBOX.md; the tasks from PLAN.md; the checks from .gates.jsonl; the decisions from DECISIONS.md.](skills/bench/assets/readme-bench.png)
 
@@ -102,6 +111,11 @@ In the reply, the agent should name the parts it used; if it does not, ask.
 | `skills/working-discipline/` | Habits for arriving in a codebase, reading, measuring, building and reporting. |
 | `skills/gates/` | Builds the check suite: one command, a ledger, a proof that each check can fail, and a progress window. One part per session, after start-here. |
 | `skills/bench/` | The bench: `serve.mjs` (a small server, Node 18 or newer, no packages), `bench.html` (the page), `shortcut.mjs` (puts its icon on the desktop), and its images: the icon, the screenshot, and this README's pictures. |
+| `skills/two-strikes/` | Stops a step after its second failure of the same check. `scripts/two_strikes.py`: `strike`, `reset`, `ledger`, and a self-test. |
+| `skills/test-freeze/` | Refuses a commit that changes an existing test beside code without a `TEST-CHANGE:` reason. `scripts/test_freeze.py`: `check` over a range of commits, and a self-test. |
+| `skills/decide-first/` | Makes a design question get its cancel line, a measurement and a decision with a reason, in that order, before code. `scripts/decide_first.py`: `open`, `probe`, `decide`, `check`, and a self-test. |
+| `skills/bake-off/` | Builds a piece nobody has designed, in a fixed order: rules, a dumb control, candidates with kill lines, a scoreboard, a pick. `scripts/bake_off.py`: `check`, `scoreboard`, and a self-test. |
+| `tests/` | The kit's own tests, in Python's standard `unittest`. Each script's self-test runs green, and each of its breaks turns only its own row red. |
 | `templates/` | Short starting versions of the loop documents: PLAN, STATE, HANDOFF, DECISIONS, PICKUP, FILEMAP, ORDER, REPORT, LESSONS, AGENTS and CLAUDE, plus the archive's index (ARCHIVE-README). |
 | `LICENSE` | The MIT License. |
 | `NOTICE.md` | What the license covers, and the names and marks it does not. |
@@ -133,6 +147,12 @@ A skill is a folder with a SKILL.md file in it. Claude Code looks for skills in 
    tab can show them.
 5. Start a new Claude Code session so it picks up the skills. In recent versions, typing `/` lists
    them (for example `/start-here`).
+
+The four scripts (`two-strikes`, `test-freeze`, `decide-first`, `bake-off`) need Python 3.8 or newer and,
+for two of them, git. They use no packages. Python is `python3` on macOS and Linux, and `python` on Windows.
+To check the kit itself, from the folder this repository lives in:
+
+    python3 -m unittest discover -s tests
 
 If you already have skills with the same names, rename the folder and the `name:` line in its
 SKILL.md together.
