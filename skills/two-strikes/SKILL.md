@@ -16,7 +16,8 @@ the failing output and its best guess at the cause, and hands that to a person. 
 "The same check" means the same named thing: the same test, the same command, the same gate. Names are
 compared without regard to case or spaces, so `Unit tests: parser` and `unit tests:parser` are one check. A
 failure of a different check starts its own count. A pass ends the run of failures, so a check that failed
-once in March and once in May is two separate first strikes, not a stop.
+in March, passed in April and failed again in May is two separate first strikes, not a stop. Without the
+recorded pass in between, the May failure is the second strike.
 
 ## What the script does
 
