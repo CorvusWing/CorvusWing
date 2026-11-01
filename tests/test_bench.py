@@ -56,6 +56,15 @@ class TestBench(unittest.TestCase):
                 self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
                 self.assertEqual(support.red_rows(r.stdout), [EXPECTED_RED[name]], r.stdout)
 
+    def test_a_lasting_git_failure_is_refused_in_words_after_three_tries(self):
+        r = node("--self-test", "--break", "git-denied")
+        self.assertEqual(r.returncode, 78, r.stdout + r.stderr)
+        self.assertIn("could not look", r.stdout)
+        self.assertIn("after 3 tries", r.stdout)
+        self.assertIn("Permission denied", r.stdout)
+        self.assertNotIn("self-test GREEN", r.stdout)
+        self.assertEqual(support.red_rows(r.stdout), [])
+
     def test_break_is_refused_outside_the_self_test(self):
         r = node("--break", "no-key-check", "--check")
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)

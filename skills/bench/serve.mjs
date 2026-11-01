@@ -67,10 +67,12 @@ const SELF_TEST_CHILD = process.argv.includes("--self-test-child"); // a bench t
 const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-escape", "second-write",
   "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped",
   "refused-as-fail", "refused-as-pass", "missing-as-pass"];
+// A fault, unlike a break, plants a failure the self-test must REFUSE on (exit 78, "could not look"), never print as rows.
+const FAULTS = ["git-denied"];
 const BREAK = arg("--break", "");
 
-if (BREAK && !BREAKS.includes(BREAK)) {
-  console.error(`REFUSED: --break ${BREAK} is not one of: ${BREAKS.join(", ")}.`);
+if (BREAK && ![...BREAKS, ...FAULTS].includes(BREAK)) {
+  console.error(`REFUSED: --break ${BREAK} is not one of: ${[...BREAKS, ...FAULTS].join(", ")}.`);
   process.exit(2);
 }
 if (BREAK && !SELF_TEST && !SELF_TEST_CHILD) {
@@ -929,14 +931,20 @@ async function selfTest() {
     for (const args of [["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "start"]]) {
       // On Windows a file git has just written can be held for a moment by another program (a virus scanner, the search
       // indexer), and git stops with "Permission denied". The scratch project is a setup, not what is checked: that one error
-      // is tried again, at most three times in all, and still refused in words after that.
-      let failed = await gitIn(full, args);
-      for (let again = 1; failed && /Permission denied/.test(failed) && again < 3; again++) {
-        await new Promise((r) => setTimeout(r, 500 * again));
-        failed = await gitIn(full, args);
+      // is tried again, at most three times in all (waits of 0.5 s and 1 s between them), and a failure that outlasts the
+      // three is refused in words, with the count. The git-denied break plants that lasting failure to prove it.
+      const attempt = () => (BREAK === "git-denied" && args[0] === "add"
+        ? Promise.resolve("git add failed, exit 128: error: unable to write file .git/objects/00/0: Permission denied (planted by --break git-denied)")
+        : gitIn(full, args));
+      let failed = await attempt();
+      let tries = 1;
+      for (; failed && /Permission denied/.test(failed) && tries < 3; tries++) {
+        await new Promise((r) => setTimeout(r, 500 * tries));
+        failed = await attempt();
       }
       if (failed) {
-        console.log(`bench self-test REFUSED -- git could not make the scratch project's first commit: ${failed}`);
+        console.log(`bench self-test REFUSED -- it could not look: git could not make the scratch project's first commit ` +
+          `after ${tries} ${tries === 1 ? "try" : "tries"}: ${failed}`);
         return 78;
       }
     }
