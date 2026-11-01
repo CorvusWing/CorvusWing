@@ -79,6 +79,7 @@ node <this skill's folder>/shortcut.mjs --project <the project folder>
 | Message Claude | INBOX.md | there are no messages yet |
 | About CorvusWing | the kit's README.md, LICENSE and NOTICE.md (see Install in the README) | they are not beside the bench |
 | A room's tab | the room's `.js` file in the rooms folder | its tab says it could not be opened, and why |
+| Questions (a room) | QUESTIONS.md's `## Q-nnn` sections, and INBOX.md for which are answered | QUESTIONS.md is absent; a question with fewer than two options, or not exactly one `(recommended)`, shows as "cannot be answered yet" with the reason |
 
 Rows that start with "Example:" are the templates' illustrations. The bench hides them and says how
 many it hid.
@@ -136,14 +137,31 @@ The agent's side of it (the AGENTS.md template carries the same rule):
    done or where the answer is>`. The page shows the new status within five seconds.
 4. **Never delete a message.** The file is the record of what was asked.
 
+## Questions: a decision as one click
+
+When a decision is the developer's, the agent writes it into **QUESTIONS.md** in the shape of
+`templates/QUESTIONS.md`: what it is, the question, and numbered options each with its cost, exactly
+one marked `(recommended)`. The Questions tab shows each one as a card, the recommendation first, with
+a button per option and "Ask me first". A click writes one message to INBOX.md:
+
+```text
+## M-005 · 2026-10-21 14:09 · waiting
+
+Answer to Q-001: 1. Keep them in a file (the recommended one)
+```
+
+The bench never edits QUESTIONS.md. A question reads answered once INBOX.md holds a message starting
+`Answer to Q-nnn:`, from a click or written by hand; the newest one wins. The agent acts on it like any
+other message. A question titled `Example: ...` is the template's illustration and is hidden.
+
 ## What it never does
 
 - **It is reachable from this machine only.** It listens on 127.0.0.1, answers only requests that
   name it as their host, and refuses requests from other web pages: a message is accepted only with
   the key this launch put into its own page. A page on another site cannot read the project's notes
   or write into the inbox an agent obeys.
-- **It writes one file**: INBOX.md, one appended message per Send. It reads only the files in the
-  table above.
+- **It writes one file**: INBOX.md, one appended message per Send or per answer. It reads only the
+  files in the table above.
 - **It loads nothing from the internet.** No fonts, no scripts, no tracking. The page's own rules
   forbid it.
 - **It shows the last reading as the last reading.** If the server stops answering, the page says so

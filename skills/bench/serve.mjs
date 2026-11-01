@@ -15,10 +15,10 @@
 //                   row is as expected (1 when one is not, 78 when it cannot look); --break NAME switches one guard off to prove
 //                   its row turns red
 //
-// What it reads, and only this: STATE.md, HANDOFF.md, PLAN.md, DECISIONS.md, INBOX.md, the read-path files' sizes, the checks
+// What it reads, and only this: STATE.md, HANDOFF.md, PLAN.md, DECISIONS.md, INBOX.md, QUESTIONS.md, the read-path files' sizes, the checks
 // ledger (.gates.jsonl unless --ledger names another), and `git` for the branch, the last commit and the uncommitted count;
 // and from the kit itself, the rooms folder's .js and .css files.
-// What it writes, and only this: INBOX.md, one appended message per Send.
+// What it writes, and only this: INBOX.md, one appended message per Send or per answer to a question.
 // Who can reach it: this machine only (127.0.0.1). Every request must name this server as its host (a page on another site
 // that points its own name at 127.0.0.1 is refused), and a message is accepted only with the key this launch put in the page
 // and from this page's own origin, so no other web page can write into the inbox an agent reads.
@@ -63,7 +63,8 @@ const KEY = crypto.randomBytes(18).toString("hex");
 const ROOMS = path.resolve(arg("--rooms", path.join(HERE, "rooms")));
 const SELF_TEST = process.argv.includes("--self-test");
 const SELF_TEST_CHILD = process.argv.includes("--self-test-child"); // a bench the self-test started; only it may run broken
-const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-escape", "second-write"];
+const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-escape", "second-write",
+  "two-recommended-shown", "answered-from-click", "answer-any-option"];
 const BREAK = arg("--break", "");
 
 if (BREAK && !BREAKS.includes(BREAK)) {
@@ -277,9 +278,10 @@ function readNotes() {
   return { files, total: files.reduce((s, f) => s + (f.bytes || 0), 0), warn: 300 * KB, budget: 400 * KB, ceiling: 500 * KB };
 }
 
-function readInbox() {
+// Every message in INBOX.md, oldest first, each with its id, time, status, body and line.
+function inboxMessages() {
   const doc = readDoc(INBOX);
-  if (!doc) return { messages: [], total: 0, waiting: 0 };
+  if (!doc) return [];
   const lines = doc.text.split("\n");
   const msgs = [];
   let cur = null;
@@ -289,11 +291,101 @@ function readInbox() {
     if (/^#{1,2}\s/.test(lines[i])) { cur = null; continue; }
     if (cur) cur.body.push(lines[i].replace(/^\\#/, "#"));
   }
+  return msgs.map((m) => ({ ...m, body: m.body.join("\n").trim() }));
+}
+
+function readInbox() {
+  const msgs = inboxMessages();
   return {
-    messages: msgs.slice(-8).reverse().map((m) => ({ ...m, body: m.body.join("\n").trim() })),
+    messages: msgs.slice(-8).reverse(),
     total: msgs.length,
     waiting: msgs.filter((m) => /^waiting/i.test(m.status)).length,
   };
+}
+
+// ---------------------------------------------------------------- questions: decisions only the developer can make
+// QUESTIONS.md holds one "## Q-nnn · title" section per question, with "What it is:", "The question:" and "Options:" followed by a
+// numbered list, exactly one option marked "(recommended)". The bench never edits it. A question is answered when INBOX.md holds a
+// message starting "Answer to Q-nnn:" -- the click's own message, or one written by hand; the newest answer wins.
+const QUESTIONS = "QUESTIONS.md";
+const QUESTION_HEAD = /^##\s+(Q-\d+)\s*(?:·\s*(.*))?$/;
+const ANSWER_LINE = /^Answer to (Q-\d+):\s*(.*)$/m;
+const clicked = new Map(); // answered-from-click break only: what this launch was clicked, instead of what INBOX.md holds
+
+function questionFields(id, title, body, line) {
+  const field = {};
+  const options = [];
+  let cur = null;
+  for (const raw of body) {
+    const l = raw.replace(/\*\*/g, "");
+    const label = /^(What it is|The question|Options)\s*:\s*(.*)$/i.exec(l.trim());
+    const opt = /^\s*(\d+)[.)]\s+(.*)$/.exec(l);
+    if (label) { cur = label[1].toLowerCase(); field[cur] = label[2].trim(); continue; }
+    if (cur === "options" && opt) { options.push({ n: Number(opt[1]), text: opt[2].trim() }); continue; }
+    if (!l.trim()) { if (cur !== "options") cur = null; continue; }
+    if (cur && cur !== "options") field[cur] = `${field[cur]} ${l.trim()}`.trim();
+  }
+  for (const o of options) {
+    o.recommended = /\(recommended\)/i.test(o.text);
+    o.text = o.text.replace(/\s*\(recommended\)\s*/i, " ").replace(/\s+/g, " ").trim();
+  }
+  const q = { id, title: title || "", what: field["what it is"] || "", question: field["the question"] || "", options, line };
+  const recs = options.filter((o) => o.recommended).length;
+  if (!q.question) q.refused = `${id} (line ${line}) has no "The question:" line.`;
+  else if (options.length < 2) q.refused = `${id} (line ${line}) lists ${options.length} option${options.length === 1 ? "" : "s"}; a choice needs at least two, numbered under "Options:".`;
+  else if (recs !== 1 && BREAK !== "two-recommended-shown") q.refused = `${id} (line ${line}) marks ${recs} options "(recommended)"; exactly one must be.`;
+  return q;
+}
+
+function readQuestions() {
+  const doc = readDoc(QUESTIONS);
+  if (!doc) return { absent: "QUESTIONS.md is not in this project yet. The agent writes a question there when a decision is the developer's (templates/QUESTIONS.md)." };
+  const lines = doc.text.split("\n");
+  const found = [];
+  let cur = null;
+  for (let i = 0; i < lines.length; i++) {
+    const h = QUESTION_HEAD.exec(lines[i].trim());
+    if (h) { cur = { id: h[1], title: (h[2] || "").trim(), body: [], line: i + 1 }; found.push(cur); continue; }
+    if (/^#{1,2}\s/.test(lines[i])) { cur = null; continue; }
+    if (cur) cur.body.push(lines[i]);
+  }
+  const answers = new Map();
+  if (BREAK === "answered-from-click") for (const [id, a] of clicked) answers.set(id, a);
+  else {
+    for (const m of inboxMessages()) {
+      const a = ANSWER_LINE.exec(m.body);
+      if (a) answers.set(a[1], { choice: a[2].trim(), message: m.id, at: m.at, status: m.status });
+    }
+  }
+  // a question titled "Example: ..." is the template's illustration, hidden like the tables' "Example:" rows, and counted
+  const real = found.filter((q) => !/^example:/i.test(q.title));
+  const questions = real.map((q) => ({ ...questionFields(q.id, q.title, q.body, q.line), answer: answers.get(q.id) || null }));
+  return {
+    questions,
+    examplesHidden: found.length - real.length,
+    waiting: questions.filter((q) => !q.refused && !q.answer).length,
+    answered: questions.filter((q) => !q.refused && q.answer).length,
+    refused: questions.filter((q) => q.refused).length,
+  };
+}
+
+// One click: the question must be in QUESTIONS.md and not refused, the option one it lists (or "ask"). Returns the message's text,
+// or { refused } in words.
+function answerText(body) {
+  const qs = readQuestions();
+  if (qs.absent) return { refused: qs.absent };
+  const q = qs.questions.find((x) => x.id === body.question);
+  if (!q) return { refused: `There is no question ${String(body.question).slice(0, 20)} in QUESTIONS.md.` };
+  if (q.refused) return { refused: `${q.id} cannot be answered until it is fixed: ${q.refused}` };
+  const note = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
+  let choice;
+  if (body.option === "ask") choice = "ask me first -- talk it through with me before deciding";
+  else {
+    const o = q.options.find((x) => x.n === Number(body.option));
+    if (!o && BREAK !== "answer-any-option") return { refused: `${q.id} has no option ${String(body.option).slice(0, 10)}.` };
+    choice = o ? `${o.n}. ${o.text}${o.recommended ? " (the recommended one)" : ""}` : `${body.option}.`;
+  }
+  return { id: q.id, choice, text: `Answer to ${q.id}: ${choice}` + (note ? `\n\nNote: ${note}` : "") };
 }
 
 function appendInbox(text) {
@@ -515,6 +607,18 @@ const server = http.createServer(async (req, res) => {
       touch();
       return json(res, 200, appendInbox(text));
     }
+    if (req.method === "GET" && url.pathname === "/api/questions") { touch(); return json(res, 200, readQuestions()); }
+    if (req.method === "POST" && url.pathname === "/api/answer") {
+      if (!keyOk(req)) return refuse(res, 403, "This launch's key is missing; reload the page.");
+      let body;
+      try { body = JSON.parse(await readBody(req, 8 * KB)); } catch { return refuse(res, 400, "The answer could not be read."); }
+      const a = answerText(body || {});
+      if (a.refused) return refuse(res, 400, a.refused);
+      touch();
+      const sent = appendInbox(a.text);
+      if (BREAK === "answered-from-click") clicked.set(a.id, { choice: a.choice, message: sent.id, at: sent.at, status: "waiting" });
+      return json(res, 200, { ...sent, question: a.id, choice: a.choice });
+    }
     return refuse(res, 404, "Nothing here.");
   } catch (e) {
     return refuse(res, 500, `The bench hit an error: ${e.message}`);
@@ -565,6 +669,16 @@ const SCRATCH_FILES = {
   "DECISIONS.md": ["# Decisions", "", "| Id | Date | Decision | Why | What was rejected | Reversal cost |", "|---|---|---|---|---|---|",
     "| D-001 | 2026-01-01 | Plain Node, no packages | nothing to install | a framework | low |", ""],
   ".gates.jsonl": ['{"name":"unit tests","result":"PASS","seconds":1.2,"time":"2026-01-01T00:00:00Z","commit":"abc1234"}', ""],
+  "QUESTIONS.md": ["# Questions", "",
+    "## Q-001 · Where the counts are kept", "", "What it is: the counter can keep its totals in memory or in a file.",
+    "The question: Should the totals survive a restart?", "Options:", "1. Keep them in a file (recommended) -- a few lines of code",
+    "2. Keep them in memory -- lost on every restart", "",
+    "## Q-002 · Two picks", "", "The question: Which output format?", "Options:", "1. Plain text (recommended)", "2. JSON (recommended)", "",
+    "## Q-003 · One option", "", "The question: Ship it?", "Options:", "1. Yes (recommended)", "",
+    "## Q-004 · Already answered", "", "The question: Count hyphenated words as one?", "Options:", "1. As one (recommended)",
+    "2. As two", "",
+    "## Q-005 · Example: the template's illustration", "", "The question: Shown?", "Options:", "1. No (recommended)", "2. Yes", ""],
+  "INBOX.md": ["# INBOX", "", "## M-001 · 2026-01-01 09:00 · read 09:05", "", "Answer to Q-004: 1. As one (the recommended one)", ""],
 };
 
 // The self-test's waits are generous, because a busy machine is slow, not wrong; anything that still fails to answer is a
@@ -686,7 +800,8 @@ async function selfTest() {
     }
     const filled = await runNode(["--project", full, "--check"]);
     if (/git did not answer within/.test(filled)) throw new Error("git was too slow for the Git panel's read (the machine is busy)");
-    const notFilled = filled.split("\n").filter((l) => /^\s+(EMPTY|PARTLY)\s/.test(l)).map((l) => l.trim().slice(0, 60));
+    const notFilled = filled.split("\n").filter((l) => /^\s+(EMPTY|PARTLY)\s/.test(l) && !/\sQuestions\s/.test(l))
+      .map((l) => l.trim().slice(0, 60));
     row("a full project reads 6 of 6 panels filled", /6 of 6 panels filled/.test(filled),
       [(/(\d) of 6 panels filled/.exec(filled) || ["no count"])[0], ...notFilled].join("; "));
     const bare = await runNode(["--project", empty, "--check"]);
@@ -722,6 +837,39 @@ async function selfTest() {
       if (r.code !== 404) outside.push(`${where} HTTP ${r.code}`);
     }
     row("a name outside the room list is refused", !outside.length, outside.length ? outside.join("; ") : "four names, each 404");
+
+    const questions = async () => JSON.parse((await request(port, "GET", "/api/questions")).text).questions || [];
+    const all = JSON.parse((await request(port, "GET", "/api/questions")).text);
+    const qs = all.questions || [];
+    const q = (id) => qs.find((x) => x.id === id) || {};
+    const rec = (q("Q-001").options || []).filter((o) => o.recommended).map((o) => o.text);
+    row("a waiting question is read with its one recommendation, and an Example: question is hidden",
+      !q("Q-001").refused && !q("Q-001").answer && rec.length === 1 && rec[0].startsWith("Keep them in a file") &&
+      !qs.some((x) => x.id === "Q-005") && all.examplesHidden === 1,
+      `Q-001 ${q("Q-001").refused ? "refused" : q("Q-001").answer ? "answered" : "waiting"}, recommended: ${rec.join(" | ") || "none"}; ` +
+      `${all.examplesHidden} example hidden`);
+    row("a question with fewer than two options, or not exactly one recommended, is refused in words",
+      /exactly one/.test(q("Q-002").refused || "") && /at least two/.test(q("Q-003").refused || ""),
+      `Q-002: ${q("Q-002").refused || "not refused"} / Q-003: ${q("Q-003").refused || "not refused"}`.slice(0, 160));
+    row("an answer already in INBOX.md reads as answered", q("Q-004").answer && q("Q-004").answer.message === "M-001",
+      q("Q-004").answer ? `answered by ${q("Q-004").answer.message}` : "reads as waiting");
+    const answer = (body) => request(port, "POST", "/api/answer", { origin: own, key, body: JSON.stringify(body) });
+    const wrong = [];
+    for (const [body, what] of [[{ question: "Q-999", option: 1 }, "an unknown question"], [{ question: "Q-003", option: 1 }, "a refused question"],
+      [{ question: "Q-001", option: 9 }, "an option it does not list"]]) {
+      const r = await answer(body);
+      if (r.code !== 400) wrong.push(`${what}: HTTP ${r.code}`);
+    }
+    row("an answer to an unknown question, a refused one, or an option it does not list is refused", !wrong.length,
+      wrong.length ? wrong.join("; ") : "three answers, each refused");
+    const inboxBefore = fs.readFileSync(path.join(full, INBOX), "utf8");
+    const click = await answer({ question: "Q-001", option: 1, note: "from the self-test" });
+    const added = fs.readFileSync(path.join(full, INBOX), "utf8").slice(inboxBefore.length);
+    const nowAnswered = (await questions()).find((x) => x.id === "Q-001");
+    row("a click writes one message naming the question and its option, and the question reads answered",
+      click.code === 200 && (added.match(/^## M-\d+ · /gm) || []).length === 1 &&
+      added.includes("Answer to Q-001: 1. Keep them in a file") && nowAnswered && nowAnswered.answer,
+      `HTTP ${click.code}; ${(added.match(/^## M-\d+ · /gm) || []).length} message(s) added; Q-001 ${nowAnswered && nowAnswered.answer ? "answered" : "not answered"}`);
     const before = snapshot(full);
     const sent = await request(port, "POST", "/api/inbox", { origin: own, key, body: msg });
     const diff = changed(before, snapshot(full));
@@ -791,6 +939,13 @@ async function checkReport() {
   else { filled++; add("Git", "FILLED", `branch ${s.git.branch}, ${s.git.uncommitted} uncommitted`); }
 
   add("Messages", "READY", s.inbox.total ? `INBOX.md, ${s.inbox.total} messages, ${s.inbox.waiting} waiting` : "no messages yet (INBOX.md is made by the first Send)");
+
+  // Questions are optional, like messages: a project with none is fine, and a refused question is named with its line.
+  const q = readQuestions();
+  if (q.absent) add("Questions", "READY", "no questions yet (QUESTIONS.md, in templates/QUESTIONS.md's shape, when a decision is the developer's)");
+  else if (q.refused) {
+    add("Questions", "PARTLY", `QUESTIONS.md, ${q.refused} refused: ` + q.questions.filter((x) => x.refused).map((x) => x.refused).join(" "));
+  } else add("Questions", "READY", `QUESTIONS.md, ${q.waiting} waiting, ${q.answered} answered`);
 
   return [`CorvusWing bench check: ${PROJECT}`, ...rows, "",
     `${filled} of 6 panels filled. An EMPTY or PARTLY panel is read from the file, heading or table named beside it; SKILL.md's`,

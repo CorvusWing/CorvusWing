@@ -111,13 +111,13 @@ In the reply, the agent should name the parts it used; if it does not, ask.
 | `skills/holding-the-goal/` | Questions to run before saying "cannot", and before saying "we should fix this". |
 | `skills/working-discipline/` | Habits for arriving in a codebase, reading, measuring, building and reporting. |
 | `skills/gates/` | Builds the check suite: one command, a ledger, a proof that each check can fail, and a progress window. One part per session, after start-here. |
-| `skills/bench/` | The bench: `serve.mjs` (a small server, Node 18 or newer, no packages), `bench.html` (the page), `shortcut.mjs` (puts its icon on the desktop), and its images: the icon, the screenshot, and this README's pictures. |
+| `skills/bench/` | The bench: `serve.mjs` (a small server, Node 18 or newer, no packages), `bench.html` (the page), `shortcut.mjs` (puts its icon on the desktop), `rooms/` (extra tabs; the first is Questions, a decision as one click), and its images: the icon, the screenshot, and this README's pictures. |
 | `skills/two-strikes/` | Stops a step after the second failure in a row of the same check. `scripts/two_strikes.py`: `run`, `strike`, `pass`, `reset`, `ledger`, and a self-test. |
 | `skills/test-freeze/` | Refuses a commit that changes or deletes an existing test without a `TEST-CHANGE:` reason. `scripts/test_freeze.py`: `check` over a range of commits, commit by commit or `--net`, and a self-test. |
 | `skills/decide-first/` | Makes a design question get its cancel line, a measurement and a decision with a reason, in that order, before code. `scripts/decide_first.py`: `open`, `probe`, `decide`, `check`, and a self-test. |
 | `skills/bake-off/` | Builds a piece nobody has designed, in a fixed order: frozen rules, a dumb control, candidates on their own branches with kill lines, a scoreboard, a pick. `scripts/bake_off.py`: `check`, `scoreboard`, and a self-test. |
 | `tests/` | The kit's own tests, in Python's standard `unittest`. Each script's self-test runs green, each of its breaks turns only its expected row red, and each script runs once end to end from the command line. The bench's self-test (`node skills/bench/serve.mjs --self-test`) starts the real server on scratch projects; its breaks are checked the same way. `.github/workflows/test.yml` runs them on Linux, macOS and Windows with Python 3.8 and 3.12, and the bench on Node 18. |
-| `templates/` | Short starting versions of the loop documents: PLAN, STATE, HANDOFF, DECISIONS, PICKUP, FILEMAP, ORDER, REPORT, LESSONS, AGENTS and CLAUDE, plus the archive's index (ARCHIVE-README). |
+| `templates/` | Short starting versions of the loop documents: PLAN, STATE, HANDOFF, DECISIONS, PICKUP, FILEMAP, ORDER, REPORT, LESSONS, QUESTIONS, AGENTS and CLAUDE, plus the archive's index (ARCHIVE-README). |
 | `LICENSE` | The MIT License. |
 | `NOTICE.md` | What the license covers, and the names and marks it does not. |
 

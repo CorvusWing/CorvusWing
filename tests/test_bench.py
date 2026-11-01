@@ -17,6 +17,9 @@ EXPECTED_RED = {
     "no-key-check": "a message without this launch's key is refused",
     "room-path-escape": "a name outside the room list is refused",
     "second-write": "a sent message lands in INBOX.md, the only file changed",
+    "two-recommended-shown": "a question with fewer than two options, or not exactly one recommended, is refused in words",
+    "answered-from-click": "an answer already in INBOX.md reads as answered",
+    "answer-any-option": "an answer to an unknown question, a refused one, or an option it does not list is refused",
 }
 
 

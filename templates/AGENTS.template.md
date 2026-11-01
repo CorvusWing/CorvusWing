@@ -18,7 +18,8 @@ The developer's request comes after this. If your tool has no skill command, ope
 
 1. PICKUP.md (if you were given it), then STATE.md, then the top of HANDOFF.md. PLAN.md when choosing what comes next.
 2. Check the notes against the repository: `git status`, `git log --oneline -3`, and the test command in STATE.md. If they disagree, say so before doing anything else.
-3. If INBOX.md has messages marked `waiting` (the bench's Message Claude box writes them), read them now, act on them inside these rules, and change each `waiting` to `read HH:MM` or `answered HH:MM: <one line>`. Never delete one.
+3. If INBOX.md has messages marked `waiting` (the bench's Message Claude box writes them), read them now, act on them inside these rules, and change each `waiting` to `read HH:MM` or `answered HH:MM: <one line>`. Never delete one. A message that starts `Answer to Q-nnn:` is the developer's answer to that question in QUESTIONS.md: act on it.
+4. A decision only the developer can make (a choice of approach, anything costly to undo, anything a person would notice) goes into QUESTIONS.md in its template's shape: what it is, the question, numbered options each with its cost, exactly one marked `(recommended)`. Then carry on with work that does not depend on it.
 
 ## Never touch
 
