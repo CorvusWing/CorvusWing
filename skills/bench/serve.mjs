@@ -68,7 +68,7 @@ const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-e
   "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped",
   "refused-as-fail", "refused-as-pass", "missing-as-pass", "pill-missing-as-pass"];
 // A fault, unlike a break, plants a failure the self-test must REFUSE on (exit 78, "could not look"), never print as rows.
-const FAULTS = ["git-denied"];
+const FAULTS = ["git-denied", "git-index-held"];
 const BREAK = arg("--break", "");
 
 if (BREAK && ![...BREAKS, ...FAULTS].includes(BREAK)) {
@@ -946,15 +946,19 @@ async function selfTest() {
   try {
     for (const args of [["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "start"]]) {
       // On Windows a file git has just written can be held for a moment by another program (a virus scanner, the search
-      // indexer), and git stops with "Permission denied". The scratch project is a setup, not what is checked: that one error
-      // is tried again, at most three times in all (waits of 0.5 s and 1 s between them), and a failure that outlasts the
+      // indexer), and git stops with "Permission denied", or, when the held file is its index, "unable to write new index
+      // file". The scratch project is a setup, not what is checked: those two errors, by name, are tried again, at most three times in all (waits of 0.5 s and 1 s between them), and a failure that outlasts the
       // three is refused in words, with the count. The git-denied break plants that lasting failure to prove it.
-      const attempt = () => (BREAK === "git-denied" && args[0] === "add"
-        ? Promise.resolve("git add failed, exit 128: error: unable to write file .git/objects/00/0: Permission denied (planted by --break git-denied)")
+      const planted = {
+        "git-denied": "error: unable to write file .git/objects/00/0: Permission denied",
+        "git-index-held": "fatal: unable to write new index file",
+      }[BREAK];
+      const attempt = () => (planted && args[0] === "add"
+        ? Promise.resolve(`git add failed, exit 128: ${planted} (planted by --break ${BREAK})`)
         : gitIn(full, args));
       let failed = await attempt();
       let tries = 1;
-      for (; failed && /Permission denied/.test(failed) && tries < 3; tries++) {
+      for (; failed && /Permission denied|unable to write new index file/.test(failed) && tries < 3; tries++) {
         await new Promise((r) => setTimeout(r, 500 * tries));
         failed = await attempt();
       }
