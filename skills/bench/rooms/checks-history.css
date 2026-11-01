@@ -1,0 +1,15 @@
+/* The Checks history room: the bench's own colors and type (bench.html's tokens), nothing new. */
+.htable { width: 100%; border-collapse: collapse; font-size: 13px }
+.htable th { text-align: left; font: 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--faint);
+  padding: 6px 8px; border-bottom: 1px solid var(--line) }
+.htable td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle }
+.hname { font-weight: 600 }
+.hstrip { white-space: nowrap }
+.hmark { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 18px; margin-right: 3px;
+  border-radius: 4px; font: 700 10px var(--mono); vertical-align: middle; color: #1b1830 }
+.hmark.pass { background: var(--ok) }
+.hmark.fail { background: var(--bad) }
+.hmark.refused { background: var(--warn) }
+.hmark.other { background: var(--faint) }
+.hmore { font: 11px var(--mono); color: var(--faint); margin-right: 6px }
+.hnum { font-family: var(--mono); color: var(--muted) }

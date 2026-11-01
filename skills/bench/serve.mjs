@@ -65,7 +65,8 @@ const ROOMS = path.resolve(arg("--rooms", path.join(HERE, "rooms")));
 const SELF_TEST = process.argv.includes("--self-test");
 const SELF_TEST_CHILD = process.argv.includes("--self-test-child"); // a bench the self-test started; only it may run broken
 const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-escape", "second-write",
-  "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped"];
+  "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped",
+  "refused-as-fail", "refused-as-pass", "missing-as-pass"];
 const BREAK = arg("--break", "");
 
 if (BREAK && !BREAKS.includes(BREAK)) {
@@ -269,6 +270,55 @@ function readChecks(head) {
     atHead: head && g.commit ? head.startsWith(g.commit) || g.commit.startsWith(head) : null,
   }));
   return { ledger: LEDGER, gates, runs, unparsed };
+}
+
+// The checks history: every check's results in ledger order (oldest first, the newest HISTORY_RUNS kept), each a PASS, FAIL or
+// REFUSED mark -- REFUSED is its own mark, never a pass and never a fail -- and whether the check has a line at the ledger's newest
+// commit. A check with none there is "not run at the newest commit", never shown as passing. The bench does not recompute a gate's
+// fingerprint (that needs the files each gate reads); the gates skill's --status stays the word on STALE.
+const HISTORY_RUNS = 20;
+function markOf(result) {
+  const r = String(result || "").toUpperCase();
+  if (/^(PASS|PASSED|OK|GREEN|SUCCESS)$/.test(r)) return "pass";
+  if (/^(FAIL|FAILED|RED|ERROR)$/.test(r)) return "fail";
+  if (/^REFUSED$/.test(r)) return BREAK === "refused-as-fail" ? "fail" : BREAK === "refused-as-pass" ? "pass" : "refused";
+  return "other";
+}
+function readHistory() {
+  let text;
+  try { text = fs.readFileSync(path.resolve(PROJECT, LEDGER), "utf8"); } catch {
+    return { absent: `No checks ledger in this project yet (${LEDGER}). The gates skill builds one.`, ledger: LEDGER };
+  }
+  const by = new Map();
+  let unparsed = 0;
+  let lines = 0;
+  let newestCommit = null;
+  for (const raw of text.split(/\r?\n/)) {
+    if (!raw.trim()) continue;
+    let o;
+    try { o = JSON.parse(raw); } catch { unparsed++; continue; }
+    const name = o && (o.name ?? o.gate ?? o.id);
+    if (name == null) { unparsed++; continue; }
+    lines++;
+    const seconds = Number(o.seconds ?? o.secs ?? o.duration);
+    const commit = o.commit ? String(o.commit) : null;
+    if (commit) newestCommit = commit;
+    if (!by.has(String(name))) by.set(String(name), []);
+    by.get(String(name)).push({ result: String(o.result ?? o.status ?? o.outcome ?? "").toUpperCase() || null,
+      mark: markOf(o.result ?? o.status ?? o.outcome), seconds: Number.isFinite(seconds) ? seconds : null,
+      at: when(o.time ?? o.at ?? o.ts ?? o.when ?? o.date), commit });
+  }
+  const checks = [...by.entries()].map(([name, all]) => {
+    const marks = all.slice(-HISTORY_RUNS);
+    const times = all.map((m) => m.seconds).filter((s) => s != null);
+    const last = all[all.length - 1];
+    return {
+      name, marks, runs: all.length, newest: last,
+      slowest: times.length ? Math.max(...times) : null,
+      notRunAtNewest: BREAK === "missing-as-pass" ? false : Boolean(newestCommit && last.commit !== newestCommit),
+    };
+  });
+  return { ledger: LEDGER, checks, lines, unparsed, newestCommit, kept: HISTORY_RUNS };
 }
 
 function readNotes() {
@@ -664,6 +714,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, appendInbox(text));
     }
     if (req.method === "GET" && url.pathname === "/api/questions") { touch(); return json(res, 200, readQuestions()); }
+    if (req.method === "GET" && url.pathname === "/api/history") { touch(); return json(res, 200, readHistory()); }
     if (req.method === "GET" && url.pathname.startsWith("/pictures/")) {
       const [qid, ...rest] = url.pathname.slice("/pictures/".length).split("/");
       const p = pictureFile(decodeURIComponent(qid), decodeURIComponent(rest.join("/")));
@@ -850,8 +901,19 @@ async function selfTest() {
   const full = path.join(tmp, "full");
   const empty = path.join(tmp, "empty");
   const rooms = path.join(tmp, "rooms");
-  for (const d of [full, empty, rooms]) fs.mkdirSync(d);
+  const history = path.join(tmp, "history");
+  for (const d of [full, empty, rooms, history]) fs.mkdirSync(d);
   for (const [name, lines] of Object.entries(SCRATCH_FILES)) fs.writeFileSync(path.join(full, name), lines.join("\n"));
+  // a ledger of three checks over five commits: unit tests fails once, lint is REFUSED once, docs has no line at the newest
+  // commit, and one line is not JSON at all
+  const run = (commit, name, result, seconds) => JSON.stringify({ name, result, seconds, commit, time: `2026-01-0${commit.slice(1)}T10:00:00Z` });
+  fs.writeFileSync(path.join(history, ".gates.jsonl"), [
+    run("c1", "unit tests", "PASS", 1.1), run("c1", "lint", "PASS", 0.5), run("c1", "docs", "PASS", 0.2),
+    run("c2", "unit tests", "FAIL", 1.3), run("c2", "lint", "PASS", 0.5), run("c2", "docs", "PASS", 0.2),
+    run("c3", "unit tests", "PASS", 1.2), run("c3", "lint", "PASS", 0.6), run("c3", "docs", "FAIL", 0.3),
+    run("c4", "unit tests", "PASS", 1.0), run("c4", "lint", "REFUSED", 0.1), run("c4", "docs", "PASS", 0.2),
+    "this line is not a ledger entry",
+    run("c5", "unit tests", "PASS", 1.4), run("c5", "lint", "PASS", 0.5), ""].join("\n"));
   // two real one-pixel pictures for Q-006; its third, gone.png, is left missing on purpose
   const pixel = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
   fs.mkdirSync(path.join(full, PICTURES, "Q-006"), { recursive: true });
@@ -862,6 +924,7 @@ async function selfTest() {
   const rows = [];
   const row = (name, ok, detail) => rows.push({ name, ok: Boolean(ok), detail });
   let bench = null;
+  let bench2 = null; // the checks history's own scratch project
   try {
     for (const args of [["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "start"]]) {
       // On Windows a file git has just written can be held for a moment by another program (a virus scanner, the search
@@ -986,11 +1049,26 @@ async function selfTest() {
     row("a sent message lands in INBOX.md, the only file changed",
       sent.code === 200 && diff.length === 1 && diff[0] === INBOX && inbox.includes("from the self-test"),
       `HTTP ${sent.code}; changed: ${diff.join(", ") || "nothing"}`);
+
+    bench2 = await startBench(history, rooms);
+    const h = JSON.parse((await request(bench2.port, "GET", "/api/history")).text);
+    const check = (name) => (h.checks || []).find((c) => c.name === name) || { marks: [] };
+    const strip = (name) => check(name).marks.map((m) => m.mark).join(",");
+    row("each check's results are drawn in ledger order, with an unreadable line counted",
+      strip("unit tests") === "pass,fail,pass,pass,pass" && h.unparsed === 1 && check("unit tests").slowest === 1.4,
+      `unit tests: ${strip("unit tests")}; unreadable: ${h.unparsed}; slowest ${check("unit tests").slowest} s`);
+    row("a REFUSED run is its own mark, never a pass or a fail", strip("lint") === "pass,pass,pass,refused,pass",
+      `lint: ${strip("lint")}`);
+    row("a check with no line at the newest commit reads 'not run', never passing",
+      check("docs").notRunAtNewest === true && check("unit tests").notRunAtNewest === false && h.newestCommit === "c5",
+      `docs ${check("docs").notRunAtNewest ? "not run" : "shown as current"} at ${h.newestCommit}; ` +
+      `unit tests ${check("unit tests").notRunAtNewest ? "not run" : "current"}`);
   } catch (e) {
     console.log(`bench self-test REFUSED -- it could not look: ${e.message}`);
     return 78;
   } finally {
     if (bench) bench.child.kill();
+    if (bench2) bench2.child.kill();
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* the temp folder is cleaned by the system */ }
   }
   for (const r of rows) console.log(`  ${r.ok ? "ok " : "RED"}  ${r.name} -- ${r.detail}`);
