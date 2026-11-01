@@ -20,6 +20,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # the bench promises Node 18 or newer, so its tests run on the oldest version it promises
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
       - uses: astral-sh/setup-uv@v6
       - name: Install Python ${{ matrix.python }}
         run: uv python install ${{ matrix.python }}
@@ -32,3 +36,5 @@ jobs:
                         decide-first/scripts/decide_first.py bake-off/scripts/bake_off.py; do
             uv run --no-project --python ${{ matrix.python }} python "skills/$script" --self-test
           done
+      - name: The bench's self-test
+        run: node skills/bench/serve.mjs --self-test

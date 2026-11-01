@@ -9,9 +9,15 @@
 //                   this project already answers, open that one instead of starting a second
 //   --keep-running  do not stop when the page is closed (by default the bench stops 45 s after its last page closes, or 3 min after
 //                   it last heard from any page, once a page has been open; the page's Stop button stops it at once)
+//   --rooms DIR     the folder of extra rooms (default: rooms/ beside this file); each room is one .js file, and only the .js and
+//                   .css files found there at start are ever served
+//   --self-test     start the real bench on scratch projects in the temp folder, check each row by name, and exit 0 when every
+//                   row is as expected (1 when one is not, 78 when it cannot look); --break NAME switches one guard off to prove
+//                   its row turns red
 //
 // What it reads, and only this: STATE.md, HANDOFF.md, PLAN.md, DECISIONS.md, INBOX.md, the read-path files' sizes, the checks
-// ledger (.gates.jsonl unless --ledger names another), and `git` for the branch, the last commit and the uncommitted count.
+// ledger (.gates.jsonl unless --ledger names another), and `git` for the branch, the last commit and the uncommitted count;
+// and from the kit itself, the rooms folder's .js and .css files.
 // What it writes, and only this: INBOX.md, one appended message per Send.
 // Who can reach it: this machine only (127.0.0.1). Every request must name this server as its host (a page on another site
 // that points its own name at 127.0.0.1 is refused), and a message is accepted only with the key this launch put in the page
@@ -54,7 +60,20 @@ const EXIT_WHEN_CLOSED = !process.argv.includes("--keep-running");
 const BYE_MS = 45 * 1000;      // after the last page says goodbye: room for a reload, or another tab's heartbeat
 const IDLE_MS = 3 * 60 * 1000; // no page heard from at all: a crashed browser never says goodbye
 const KEY = crypto.randomBytes(18).toString("hex");
+const ROOMS = path.resolve(arg("--rooms", path.join(HERE, "rooms")));
+const SELF_TEST = process.argv.includes("--self-test");
+const SELF_TEST_CHILD = process.argv.includes("--self-test-child"); // a bench the self-test started; only it may run broken
+const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-escape", "second-write"];
+const BREAK = arg("--break", "");
 
+if (BREAK && !BREAKS.includes(BREAK)) {
+  console.error(`REFUSED: --break ${BREAK} is not one of: ${BREAKS.join(", ")}.`);
+  process.exit(2);
+}
+if (BREAK && !SELF_TEST && !SELF_TEST_CHILD) {
+  console.error("REFUSED: --break goes with --self-test only; a real bench never runs with a guard switched off.");
+  process.exit(2);
+}
 if (Number(process.versions.node.split(".")[0]) < 18) {
   console.error(`REFUSED: the bench needs Node 18 or newer; this is ${process.versions.node}.`);
   process.exit(2);
@@ -63,7 +82,8 @@ if (!fs.existsSync(PROJECT) || !fs.statSync(PROJECT).isDirectory()) {
   console.error(`REFUSED: the project folder ${PROJECT} does not exist.`);
   process.exit(2);
 }
-if (!Number.isInteger(FIRST_PORT) || FIRST_PORT < 1024 || FIRST_PORT > 65535) {
+// port 0 (the system picks a free one) only for a bench the self-test started, so its runs side by side never share a port
+if (!(SELF_TEST_CHILD && FIRST_PORT === 0) && (!Number.isInteger(FIRST_PORT) || FIRST_PORT < 1024 || FIRST_PORT > 65535)) {
   console.error(`REFUSED: --port must be a whole number from 1024 to 65535.`);
   process.exit(2);
 }
@@ -293,6 +313,7 @@ function appendInbox(text) {
   else block = (existing.endsWith("\n\n") || existing.endsWith("\r\n\r\n") ? "" : existing.endsWith("\n") ? "\n" : "\n\n") + block;
   if (existing.includes("\r\n")) block = block.replace(/\n/g, "\r\n");
   fs.appendFileSync(p, block);
+  if (BREAK === "second-write") fs.writeFileSync(path.join(PROJECT, ".bench-last.json"), JSON.stringify({ id, at }));
   return { id, at };
 }
 
@@ -355,7 +376,11 @@ function readAbout() {
 // ---------------------------------------------------------------- the server
 
 const ASSETS = new Set(fs.existsSync(path.join(HERE, "assets")) ? fs.readdirSync(path.join(HERE, "assets")) : []);
-const TYPES = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml" };
+const TYPES = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml",
+  ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
+// The rooms: the .js and .css files in ROOMS when the bench starts, by name only. A room is one .js file whose tab the page adds.
+const ROOM_NAME = /^[a-z0-9][a-z0-9-]*\.(js|css)$/;
+const ROOM_FILES = new Set(fs.existsSync(ROOMS) ? fs.readdirSync(ROOMS).filter((n) => ROOM_NAME.test(n)) : []);
 let PORT = FIRST_PORT;
 
 function send(res, code, type, body, extra = {}) {
@@ -399,8 +424,11 @@ function openBrowser(url) {
   }
 }
 
-const hostOk = (req) => [`127.0.0.1:${PORT}`, `localhost:${PORT}`].includes(String(req.headers.host || "").toLowerCase());
-const originOk = (req) => !req.headers.origin || [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`].includes(req.headers.origin);
+const hostOk = (req) => BREAK === "no-host-check" ||
+  [`127.0.0.1:${PORT}`, `localhost:${PORT}`].includes(String(req.headers.host || "").toLowerCase());
+const originOk = (req) => BREAK === "no-origin-check" ||
+  !req.headers.origin || [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`].includes(req.headers.origin);
+const keyOk = (req) => BREAK === "no-key-check" || req.headers["x-bench-key"] === KEY;
 
 function page(res) {
   let html;
@@ -410,7 +438,8 @@ function page(res) {
   const nonce = crypto.randomBytes(16).toString("base64");
   html = html.replaceAll("__NONCE__", nonce).replace("__KEY__", KEY);
   send(res, 200, "text/html; charset=utf-8", html, {
-    "Content-Security-Policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src 'self'; ` +
+    // 'self' lets the page load its rooms from /rooms/, which serves only the allow-listed files; nothing from elsewhere
+    "Content-Security-Policy": `default-src 'none'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'nonce-${nonce}'; img-src 'self'; ` +
       "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   });
 }
@@ -437,8 +466,19 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) { touch(); return page(res); }
     if (req.method === "GET" && url.pathname === "/api/state") { touch(); return json(res, 200, await collect()); }
     if (req.method === "GET" && url.pathname === "/api/about") { touch(); return json(res, 200, readAbout()); }
+    if (req.method === "GET" && url.pathname === "/api/rooms") {
+      return json(res, 200, { rooms: [...ROOM_FILES].filter((n) => n.endsWith(".js")).map((n) => n.slice(0, -3)).sort() });
+    }
+    if (req.method === "GET" && url.pathname.startsWith("/rooms/")) {
+      const name = decodeURIComponent(url.pathname.slice("/rooms/".length));
+      const p = path.join(ROOMS, name);
+      if (BREAK === "room-path-escape" ? !fs.existsSync(p) : !ROOM_FILES.has(name) || name !== path.basename(name)) {
+        return refuse(res, 404, "No such room.");
+      }
+      return send(res, 200, TYPES[path.extname(name).toLowerCase()] || "application/octet-stream", fs.readFileSync(p));
+    }
     if (req.method === "POST" && url.pathname === "/api/alive") {
-      if (req.headers["x-bench-key"] !== KEY) return refuse(res, 403, "This launch's key is missing; reload the page.");
+      if (!keyOk(req)) return refuse(res, 403, "This launch's key is missing; reload the page.");
       touch();
       return send(res, 204, "text/plain", "");
     }
@@ -451,7 +491,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 204, "text/plain", "");
     }
     if (req.method === "POST" && url.pathname === "/api/stop") {
-      if (req.headers["x-bench-key"] !== KEY) return refuse(res, 403, "This launch's key is missing; reload the page.");
+      if (!keyOk(req)) return refuse(res, 403, "This launch's key is missing; reload the page.");
       res.on("finish", () => shutdown("stopped from the page"));
       return json(res, 200, { stopping: true });
     }
@@ -462,7 +502,7 @@ const server = http.createServer(async (req, res) => {
         fs.readFileSync(path.join(HERE, "assets", name)), { "Cache-Control": "max-age=3600" });
     }
     if (req.method === "POST" && url.pathname === "/api/inbox") {
-      if (req.headers["x-bench-key"] !== KEY) return refuse(res, 403, "This launch's key is missing; reload the page.");
+      if (!keyOk(req)) return refuse(res, 403, "This launch's key is missing; reload the page.");
       let text;
       try { text = JSON.parse(await readBody(req, 32 * KB)).text; } catch { return refuse(res, 400, "The message could not be read."); }
       if (typeof text !== "string" || !text.trim()) return refuse(res, 400, "An empty message is not sent.");
@@ -483,8 +523,8 @@ function listen(port, triesLeft) {
     process.exit(3);
   });
   server.listen(port, HOST, () => {
-    PORT = port;
-    const url = `http://${HOST}:${port}/`;
+    PORT = server.address().port;
+    const url = `http://${HOST}:${PORT}/`;
     console.log(`CorvusWing bench for ${PROJECT}`);
     console.log(`  open ${url}`);
     if (port !== FIRST_PORT) console.log(`  (port ${FIRST_PORT} was taken, so this one is ${port})`);
@@ -504,6 +544,166 @@ async function runningBench() {
     } catch { /* nothing there, or not a bench */ }
   }
   return null;
+}
+
+// ---------------------------------------------------------------- the self-test: the real bench, on scratch projects
+
+const SCRATCH_FILES = {
+  "STATE.md": ["# State", "", "## The project in one sentence", "", "A small tool that counts the words in a file.", "",
+    "## Done looks like", "", "It prints the word count of any text file.", "",
+    "Last checked at commit `abc1234` on branch `main` (2026-01-01)", "", "## What works now", "",
+    "| Area | Status | How we know |", "|---|---|---|", "| Counting | works | the unit tests |", ""],
+  "HANDOFF.md": ["# Handoff", "", "## Next", "", "| Id | Task | Done when | Cancel if | Size | Status |", "|---|---|---|---|---|---|",
+    "| T-2 | Count lines too | its test passes | nobody needs it | 1 sitting | ready |", ""],
+  "PLAN.md": ["# Plan", "", "| Id | Milestone | Task | Done when | Cancel if | Size | Status |", "|---|---|---|---|---|---|---|",
+    "| T-1 | M-1 | Count words | it prints the total | never | 1 sitting | done |", ""],
+  "DECISIONS.md": ["# Decisions", "", "| Id | Date | Decision | Why | What was rejected | Reversal cost |", "|---|---|---|---|---|---|",
+    "| D-001 | 2026-01-01 | Plain Node, no packages | nothing to install | a framework | low |", ""],
+  ".gates.jsonl": ['{"name":"unit tests","result":"PASS","seconds":1.2,"time":"2026-01-01T00:00:00Z","commit":"abc1234"}', ""],
+};
+
+function runNode(args) {
+  return new Promise((resolve) => {
+    execFile(process.execPath, [fileURLToPath(import.meta.url), ...args], { windowsHide: true, timeout: 20000 },
+      (err, out, errOut) => resolve({ code: err ? err.code ?? 1 : 0, out: String(out) + String(errOut) }));
+  });
+}
+
+function gitIn(dir, args) {
+  return new Promise((resolve) => {
+    execFile("git", ["-C", dir, "-c", "user.name=test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", ...args],
+      { windowsHide: true, timeout: 10000 }, (err) => resolve(!err));
+  });
+}
+
+// Every file in a folder (not .git) and a hash of its bytes, to see exactly which files a request changed.
+function snapshot(dir) {
+  const out = new Map();
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.name === ".git") continue;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else out.set(path.relative(dir, p), crypto.createHash("sha1").update(fs.readFileSync(p)).digest("hex"));
+    }
+  };
+  walk(dir);
+  return out;
+}
+const changed = (a, b) => [...new Set([...a.keys(), ...b.keys()])].filter((k) => a.get(k) !== b.get(k)).sort();
+
+function request(port, method, where, { host, origin, key, body } = {}) {
+  return new Promise((resolve) => {
+    const headers = { host: host || `127.0.0.1:${port}` };
+    if (origin) headers.origin = origin;
+    if (key) headers["x-bench-key"] = key;
+    if (body != null) headers["content-type"] = "application/json";
+    const req = http.request({ host: HOST, port, method, path: where, headers }, (res) => {
+      const parts = [];
+      res.on("data", (c) => parts.push(c));
+      res.on("end", () => resolve({ code: res.statusCode, headers: res.headers, text: Buffer.concat(parts).toString("utf8") }));
+    });
+    req.on("error", (e) => resolve({ code: 0, headers: {}, text: e.message }));
+    if (body != null) req.write(body);
+    req.end();
+  });
+}
+
+// A bench of its own, as a child process on a free port, with the break (if any) switched on in it alone.
+function startBench(project, rooms) {
+  return new Promise((resolve, reject) => {
+    const args = [fileURLToPath(import.meta.url), "--project", project, "--rooms", rooms, "--port", "0", "--keep-running",
+      "--self-test-child", ...(BREAK ? ["--break", BREAK] : [])];
+    const child = spawn(process.execPath, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    const timer = setTimeout(() => { child.kill(); reject(new Error(`no bench listening after 15 s: ${out.slice(-200)}`)); }, 15000);
+    const hear = (c) => {
+      out += c;
+      const m = /open http:\/\/127\.0\.0\.1:(\d+)\//.exec(out);
+      if (m) { clearTimeout(timer); resolve({ child, port: Number(m[1]) }); }
+    };
+    child.stdout.on("data", hear);
+    child.stderr.on("data", hear);
+    child.on("exit", (code) => { clearTimeout(timer); reject(new Error(`the bench exited (${code}) before listening: ${out.slice(-200)}`)); });
+  });
+}
+
+async function selfTest() {
+  if (!(await new Promise((r) => execFile("git", ["--version"], { windowsHide: true }, (e) => r(!e))))) {
+    console.log("bench self-test REFUSED -- git is not installed, so the Git panel and the scratch project cannot be checked");
+    return 78;
+  }
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "corvuswing_bench_"));
+  const full = path.join(tmp, "full");
+  const empty = path.join(tmp, "empty");
+  const rooms = path.join(tmp, "rooms");
+  for (const d of [full, empty, rooms]) fs.mkdirSync(d);
+  for (const [name, lines] of Object.entries(SCRATCH_FILES)) fs.writeFileSync(path.join(full, name), lines.join("\n"));
+  fs.writeFileSync(path.join(rooms, "hello.js"), 'export const title = "Hello";\n');
+  fs.writeFileSync(path.join(rooms, "notes.txt"), "not a room\n");
+  fs.writeFileSync(path.join(tmp, "secret.txt"), "outside the rooms folder\n");
+  const rows = [];
+  const row = (name, ok, detail) => rows.push({ name, ok: Boolean(ok), detail });
+  let bench = null;
+  try {
+    if (!(await gitIn(full, ["init", "-q"])) || !(await gitIn(full, ["add", "-A"])) || !(await gitIn(full, ["commit", "-q", "-m", "start"]))) {
+      console.log("bench self-test REFUSED -- git could not make the scratch project's first commit");
+      return 78;
+    }
+    const filled = await runNode(["--project", full, "--check"]);
+    row("a full project reads 6 of 6 panels filled", /6 of 6 panels filled/.test(filled.out),
+      (/(\d) of 6 panels filled/.exec(filled.out) || ["no count"])[0]);
+    const bare = await runNode(["--project", empty, "--check"]);
+    const want = { "What's true now": "STATE.md", Next: "HANDOFF.md", Tasks: "PLAN.md", Decisions: "DECISIONS.md", Checks: ".gates.jsonl" };
+    const missing = Object.entries(want).filter(([panel, file]) =>
+      !bare.out.split("\n").some((l) => l.includes("EMPTY") && l.includes(panel) && l.includes(file))).map(([p]) => p);
+    row("an empty project's panels read EMPTY, each naming its file", !missing.length && /0 of 6 panels filled/.test(bare.out),
+      missing.length ? `not EMPTY with its file: ${missing.join(", ")}` : "five EMPTY, each with its file");
+
+    bench = await startBench(full, rooms);
+    const port = bench.port;
+    const own = `http://127.0.0.1:${port}`;
+    const home = await request(port, "GET", "/");
+    const key = (/<meta name="bench-key" content="([0-9a-f]+)">/.exec(home.text) || [])[1];
+    const csp = String(home.headers["content-security-policy"] || "");
+    row("the page allows its own rooms' scripts and nothing from elsewhere",
+      csp.includes("default-src 'none'") && /script-src 'self' 'nonce-/.test(csp) && !/https?:/.test(csp), csp.slice(0, 70));
+    const host = await request(port, "GET", "/api/hello", { host: `evil.example:${port}` });
+    row("a request naming another host is refused", host.code === 403, `HTTP ${host.code}`);
+    const msg = JSON.stringify({ text: "from the self-test" });
+    const away = await request(port, "POST", "/api/inbox", { origin: "http://evil.example", key, body: msg });
+    row("a message from another site's page is refused", away.code === 403, `HTTP ${away.code}`);
+    const nokey = await request(port, "POST", "/api/inbox", { origin: own, body: msg });
+    row("a message without this launch's key is refused", nokey.code === 403, `HTTP ${nokey.code}`);
+    const list = await request(port, "GET", "/api/rooms");
+    row("the rooms list names each room and nothing else", list.text === '{"rooms":["hello"]}', list.text.slice(0, 60));
+    const hello = await request(port, "GET", "/rooms/hello.js");
+    row("a listed room file is served as a script", hello.code === 200 && /javascript/.test(hello.headers["content-type"] || ""),
+      `HTTP ${hello.code} ${hello.headers["content-type"] || ""}`);
+    const outside = [];
+    for (const where of ["/rooms/..%2Fsecret.txt", "/rooms/notes.txt", "/rooms/missing.js", "/rooms/..%2F..%2Fsecret.txt"]) {
+      const r = await request(port, "GET", where);
+      if (r.code !== 404) outside.push(`${where} HTTP ${r.code}`);
+    }
+    row("a name outside the room list is refused", !outside.length, outside.length ? outside.join("; ") : "four names, each 404");
+    const before = snapshot(full);
+    const sent = await request(port, "POST", "/api/inbox", { origin: own, key, body: msg });
+    const diff = changed(before, snapshot(full));
+    const inbox = (() => { try { return fs.readFileSync(path.join(full, INBOX), "utf8"); } catch { return ""; } })();
+    row("a sent message lands in INBOX.md, the only file changed",
+      sent.code === 200 && diff.length === 1 && diff[0] === INBOX && inbox.includes("from the self-test"),
+      `HTTP ${sent.code}; changed: ${diff.join(", ") || "nothing"}`);
+  } catch (e) {
+    console.log(`bench self-test REFUSED -- it could not look: ${e.message}`);
+    return 78;
+  } finally {
+    if (bench) bench.child.kill();
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* the temp folder is cleaned by the system */ }
+  }
+  for (const r of rows) console.log(`  ${r.ok ? "ok " : "RED"}  ${r.name} -- ${r.detail}`);
+  const bad = rows.filter((r) => !r.ok).length;
+  console.log(`bench self-test ${bad ? "RED" : "GREEN"} -- ${rows.length} case(s), ${bad} not as expected${BREAK ? ` (break ${BREAK})` : ""}`);
+  return bad ? 1 : 0;
 }
 
 // --check: the same reading the page gets (collect), said panel by panel, with what an empty panel is read from. An EMPTY panel is
@@ -561,7 +761,9 @@ async function checkReport() {
     '"Fit the project to the bench" says how to bring a file into that shape without inventing anything.'].join("\n");
 }
 
-if (CHECK) {
+if (SELF_TEST) {
+  process.exit(await selfTest());
+} else if (CHECK) {
   console.log(await checkReport());
   process.exit(0);
 } else if (DETACH) {

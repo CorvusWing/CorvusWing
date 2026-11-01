@@ -28,6 +28,13 @@ For example `node ~/.claude/skills/bench/serve.mjs --project .` from the project
 - `--open` opens the page in the developer's browser once it is listening.
 - `--check` serves nothing: it prints every panel as FILLED, PARTLY or EMPTY, with the file, heading
   or table an empty one is read from, and exits. It reads exactly what the page reads.
+- `--rooms DIR` names the folder of extra rooms (default: `rooms/` beside `serve.mjs`). A room is one
+  `.js` file that exports `mount(element)`; the page gives it a tab named after the file. Only the
+  `.js` and `.css` files found there when the bench starts are ever served.
+- `--self-test` checks the bench itself: it starts the real server on scratch projects in the
+  system's temp folder, and prints one row per behavior (the panels on a full and an empty project,
+  the host, origin and key checks, the rooms, and that a message changes INBOX.md and nothing else).
+  Exit 0 means every row is as expected. It needs git.
 
 ## Give the developer a desktop icon
 
@@ -71,6 +78,7 @@ node <this skill's folder>/shortcut.mjs --project <the project folder>
 | Last commit, uncommitted files | `git` in the project folder | the folder is not a git repository |
 | Message Claude | INBOX.md | there are no messages yet |
 | About CorvusWing | the kit's README.md, LICENSE and NOTICE.md (see Install in the README) | they are not beside the bench |
+| A room's tab | the room's `.js` file in the rooms folder | its tab says it could not be opened, and why |
 
 Rows that start with "Example:" are the templates' illustrations. The bench hides them and says how
 many it hid.

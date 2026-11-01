@@ -178,6 +178,8 @@ footer b { color: var(--muted); font-weight: 600 }
     </div>
   </main>
 
+  <main id="view-room" hidden></main>
+
   <main id="view-about" hidden>
     <article class="card md" id="about"><p class="absent">Reading the kit's own files...</p></article>
   </main>
@@ -557,18 +559,36 @@ async function renderAbout() {
   }
 }
 
+// ---- rooms: one tab for each .js file the server lists from its rooms folder; a room module exports mount(element)
+async function showRoom(name) {
+  const view = $("view-room");
+  put(view, absent(`Opening the ${name} room...`));
+  try {
+    const room = await import(`/rooms/${encodeURIComponent(name)}.js`);
+    if (typeof room.mount !== "function") throw new Error("it has no mount(element) function");
+    view.replaceChildren();
+    await room.mount(view);
+  } catch (e) {
+    put(view, absent(`The ${name} room could not be opened: ${e.message}`));
+  }
+}
+
 // ---- tabs and theme
-for (const b of document.querySelectorAll('.tabs [role="tab"]')) {
+function wireTab(b) {
   b.addEventListener("click", () => {
     for (const x of document.querySelectorAll('.tabs [role="tab"]')) x.setAttribute("aria-selected", String(x === b));
-    const about = b.dataset.tab === "about";
-    $("view-bench").hidden = about;
-    $("view-about").hidden = !about;
-    if (about) renderAbout();
-    history.replaceState(null, "", about ? "#about" : location.pathname);
-    try { localStorage.setItem("corvuswing-tab", b.dataset.tab); } catch { /* private window */ }
+    const tab = b.dataset.tab;
+    const room = tab.startsWith("room:") ? tab.slice(5) : null;
+    $("view-bench").hidden = tab !== "bench";
+    $("view-about").hidden = tab !== "about";
+    $("view-room").hidden = !room;
+    if (tab === "about") renderAbout();
+    if (room) showRoom(room);
+    history.replaceState(null, "", tab === "bench" ? location.pathname : "#" + tab);
+    try { localStorage.setItem("corvuswing-tab", tab); } catch { /* private window */ }
   });
 }
+for (const b of document.querySelectorAll('.tabs [role="tab"]')) wireTab(b);
 function setTheme(t) { document.documentElement.dataset.theme = t; }
 let theme = null;
 try { theme = localStorage.getItem("corvuswing-theme"); } catch { /* private window */ }
@@ -578,9 +598,24 @@ $("theme").addEventListener("click", () => {
   setTheme(next);
   try { localStorage.setItem("corvuswing-theme", next); } catch { /* private window */ }
 });
-let startTab = location.hash === "#about" ? "about" : null;
-try { startTab = startTab || localStorage.getItem("corvuswing-tab"); } catch { /* private window */ }
-if (startTab === "about") document.querySelector('[data-tab="about"]').click();
+(async () => {
+  try {
+    const r = await fetch("/api/rooms", { cache: "no-store" });
+    const about = document.querySelector('[data-tab="about"]');
+    for (const name of (await r.json()).rooms || []) {
+      const b = el("button", null, name.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase()));
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", "false");
+      b.dataset.tab = "room:" + name;
+      about.before(b);
+      wireTab(b);
+    }
+  } catch { /* no rooms list: the bench and About tabs still work */ }
+  let startTab = location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : null;
+  try { startTab = startTab || localStorage.getItem("corvuswing-tab"); } catch { /* private window */ }
+  const start = startTab && startTab !== "bench" ? document.querySelector(`[data-tab="${CSS.escape(startTab)}"]`) : null;
+  if (start) start.click();
+})();
 </script>
 </body>
 </html>
