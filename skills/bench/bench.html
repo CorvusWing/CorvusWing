@@ -355,7 +355,7 @@ function renderChecks(c) {
   if (c.absent) return put($("checks"), absent(c.absent));
   if (!c.gates.length) return put($("checks"), absent(`The ledger ${c.ledger} has no runs yet.`));
   const out = c.gates.map((g) => {
-    const cls = g.result === "PASS" ? "ok" : g.result === "FAIL" ? "bad" : "warn";
+    const cls = g.notRunAtNewest ? "warn" : g.result === "PASS" ? "ok" : g.result === "FAIL" ? "bad" : "warn";
     const right = [g.result || "no result", g.seconds != null ? `${g.seconds} s` : null, g.at ? ago(g.at) : null].filter(Boolean).join(" · ");
     return kids(el("div", "row"), el("i", "dot " + cls), el("span", null, g.name), g.notRunAtNewest ? chip("not run at newest", "warn") : g.atHead === false ? chip("older commit", "warn") : null, el("span", "r", right));
   });
