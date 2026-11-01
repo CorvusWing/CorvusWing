@@ -18,8 +18,10 @@ next one begins:
    are frozen: no candidate, nor the control, nor the scoreboard may change them. A candidate that needs a rule
    changed starts a new bake-off, not an edit.
 3. **Control.** A deliberately dumb version (returns its input, picks at random, takes the first item) run through
-   the same tests. If the control passes a test, the test is too weak. Mark it **TOO WEAK** in the record, and
-   make it stronger. Never tune the control to fail a test.
+   the same tests. If the control passes a test, the test is too weak. Mark it **TOO WEAK** in the record.
+   A stronger test is a change to the rules, so it is made before any candidate exists: commit the stronger
+   rules, run the control again in a commit after them, and point the record at both new commits. Once a candidate
+   exists, a stronger test starts a new bake-off. Never tune the control to fail a test.
 4. **Candidates.** Each candidate on its own branch, started from the control, each with a **kill line**: the
    result that would make that candidate dead, written down and committed before the candidate's code, and before
    its first run. A candidate that hits its kill line is dead. Its tests are not.
