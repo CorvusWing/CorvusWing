@@ -111,7 +111,7 @@ In the reply, the agent should name the parts it used; if it does not, ask.
 | `skills/holding-the-goal/` | Questions to run before saying "cannot", and before saying "we should fix this". |
 | `skills/working-discipline/` | Habits for arriving in a codebase, reading, measuring, building and reporting. |
 | `skills/gates/` | Builds the check suite: one command, a ledger, a proof that each check can fail, and a progress window. One part per session, after start-here. |
-| `skills/bench/` | The bench: `serve.mjs` (a small server, Node 18 or newer, no packages), `bench.html` (the page), `shortcut.mjs` (puts its icon on the desktop), `rooms/` (extra tabs; the first is Questions, a decision as one click), and its images: the icon, the screenshot, and this README's pictures. |
+| `skills/bench/` | The bench: `serve.mjs` (a small server, Node 18 or newer, no packages), `bench.html` (the page), `shortcut.mjs` (puts its icon on the desktop), `rooms/` (extra tabs; the first is Questions: a decision as one click, and yes or no on screenshots), and its images: the icon, the screenshot, and this README's pictures. |
 | `skills/two-strikes/` | Stops a step after the second failure in a row of the same check. `scripts/two_strikes.py`: `run`, `strike`, `pass`, `reset`, `ledger`, and a self-test. |
 | `skills/test-freeze/` | Refuses a commit that changes or deletes an existing test without a `TEST-CHANGE:` reason. `scripts/test_freeze.py`: `check` over a range of commits, commit by commit or `--net`, and a self-test. |
 | `skills/decide-first/` | Makes a design question get its cancel line, a measurement and a decision with a reason, in that order, before code. `scripts/decide_first.py`: `open`, `probe`, `decide`, `check`, and a self-test. |

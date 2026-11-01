@@ -12,6 +12,9 @@ The shape, which the bench checks (a question with fewer than two options, or no
 - `What it is:` the situation in plain words, for someone who was not watching;
 - `The question:` one question, the decision alone;
 - `Options:` a numbered list; mark exactly one `(recommended)`, and give each option its cost.
+- `Pictures:` (optional) a list of `- file.png -- what it shows`, the files saved in `.bench/pictures/Q-nnn/` (PNG, JPEG or
+  WebP). The developer marks each yes, no or "say more", and one Send writes one message, `Pictures for Q-nnn:`, with a line per
+  picture. A question with pictures may have no options: then the pictures are the answer.
 
 ## Q-001 · Example: where the totals are kept
 

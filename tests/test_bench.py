@@ -20,6 +20,9 @@ EXPECTED_RED = {
     "two-recommended-shown": "a question with fewer than two options, or not exactly one recommended, is refused in words",
     "answered-from-click": "an answer already in INBOX.md reads as answered",
     "answer-any-option": "an answer to an unknown question, a refused one, or an option it does not list is refused",
+    "picture-path-escape": "a picture name that leaves its question's folder is refused",
+    "missing-as-blank": "a question's pictures are served by name, and a missing one is shown as missing and cannot be judged",
+    "verdict-dropped": "one Send names every picture, an unmarked one as 'no verdict', and a picture it does not list is refused",
 }
 
 

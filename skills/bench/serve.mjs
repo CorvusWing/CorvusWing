@@ -15,10 +15,11 @@
 //                   row is as expected (1 when one is not, 78 when it cannot look); --break NAME switches one guard off to prove
 //                   its row turns red
 //
-// What it reads, and only this: STATE.md, HANDOFF.md, PLAN.md, DECISIONS.md, INBOX.md, QUESTIONS.md, the read-path files' sizes, the checks
+// What it reads, and only this: STATE.md, HANDOFF.md, PLAN.md, DECISIONS.md, INBOX.md, QUESTIONS.md and its pictures in
+// .bench/pictures/<Q-id>/ (PNG, JPEG and WebP names only), the read-path files' sizes, the checks
 // ledger (.gates.jsonl unless --ledger names another), and `git` for the branch, the last commit and the uncommitted count;
 // and from the kit itself, the rooms folder's .js and .css files.
-// What it writes, and only this: INBOX.md, one appended message per Send or per answer to a question.
+// What it writes, and only this: INBOX.md, one appended message per Send, per answer to a question or per set of picture verdicts.
 // Who can reach it: this machine only (127.0.0.1). Every request must name this server as its host (a page on another site
 // that points its own name at 127.0.0.1 is refused), and a message is accepted only with the key this launch put in the page
 // and from this page's own origin, so no other web page can write into the inbox an agent reads.
@@ -64,7 +65,7 @@ const ROOMS = path.resolve(arg("--rooms", path.join(HERE, "rooms")));
 const SELF_TEST = process.argv.includes("--self-test");
 const SELF_TEST_CHILD = process.argv.includes("--self-test-child"); // a bench the self-test started; only it may run broken
 const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-escape", "second-write",
-  "two-recommended-shown", "answered-from-click", "answer-any-option"];
+  "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped"];
 const BREAK = arg("--break", "");
 
 if (BREAK && !BREAKS.includes(BREAK)) {
@@ -305,33 +306,48 @@ function readInbox() {
 
 // ---------------------------------------------------------------- questions: decisions only the developer can make
 // QUESTIONS.md holds one "## Q-nnn · title" section per question, with "What it is:", "The question:" and "Options:" followed by a
-// numbered list, exactly one option marked "(recommended)". The bench never edits it. A question is answered when INBOX.md holds a
-// message starting "Answer to Q-nnn:" -- the click's own message, or one written by hand; the newest answer wins.
+// numbered list, exactly one option marked "(recommended)". A question may also list "Pictures:" ("- file.png -- caption" lines),
+// kept in .bench/pictures/Q-nnn/; a question with pictures and no options is answered picture by picture. The bench never edits
+// QUESTIONS.md. A question is answered when INBOX.md holds a message starting "Answer to Q-nnn:" (or, for a pictures-only question,
+// "Pictures for Q-nnn:") -- the click's own message, or one written by hand; the newest answer wins.
 const QUESTIONS = "QUESTIONS.md";
 const QUESTION_HEAD = /^##\s+(Q-\d+)\s*(?:·\s*(.*))?$/;
-const ANSWER_LINE = /^Answer to (Q-\d+):\s*(.*)$/m;
+const ANSWER_LINE = /^(Answer|Pictures) (?:to|for) (Q-\d+):\s*(.*)$/m;
+const PICTURES = path.join(".bench", "pictures");
+const PICTURE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpe?g|webp)$/i;
+const VERDICTS = { yes: "yes", no: "no", more: "say more" };
 const clicked = new Map(); // answered-from-click break only: what this launch was clicked, instead of what INBOX.md holds
 
 function questionFields(id, title, body, line) {
   const field = {};
   const options = [];
+  const pictures = [];
   let cur = null;
   for (const raw of body) {
     const l = raw.replace(/\*\*/g, "");
-    const label = /^(What it is|The question|Options)\s*:\s*(.*)$/i.exec(l.trim());
+    const label = /^(What it is|The question|Options|Pictures)\s*:\s*(.*)$/i.exec(l.trim());
     const opt = /^\s*(\d+)[.)]\s+(.*)$/.exec(l);
+    const pic = /^\s*[-*]\s+(\S+)(?:\s+--\s+(.*))?$/.exec(l);
     if (label) { cur = label[1].toLowerCase(); field[cur] = label[2].trim(); continue; }
     if (cur === "options" && opt) { options.push({ n: Number(opt[1]), text: opt[2].trim() }); continue; }
-    if (!l.trim()) { if (cur !== "options") cur = null; continue; }
-    if (cur && cur !== "options") field[cur] = `${field[cur]} ${l.trim()}`.trim();
+    if (cur === "pictures" && pic) { pictures.push({ file: pic[1], caption: (pic[2] || "").trim() }); continue; }
+    if (!l.trim()) { if (cur !== "options" && cur !== "pictures") cur = null; continue; }
+    if (cur && cur !== "options" && cur !== "pictures") field[cur] = `${field[cur]} ${l.trim()}`.trim();
   }
   for (const o of options) {
     o.recommended = /\(recommended\)/i.test(o.text);
     o.text = o.text.replace(/\s*\(recommended\)\s*/i, " ").replace(/\s+/g, " ").trim();
   }
-  const q = { id, title: title || "", what: field["what it is"] || "", question: field["the question"] || "", options, line };
+  for (const p of pictures) {
+    if (!PICTURE_NAME.test(p.file)) { p.problem = "not a picture name (a .png, .jpg or .webp file in this question's folder)"; continue; }
+    p.missing = BREAK === "missing-as-blank" ? false : !fs.existsSync(path.join(PROJECT, PICTURES, id, p.file));
+    p.url = `/pictures/${id}/${encodeURIComponent(p.file)}`;
+  }
+  const q = { id, title: title || "", what: field["what it is"] || "", question: field["the question"] || "", options, pictures, line };
   const recs = options.filter((o) => o.recommended).length;
+  const picturesOnly = pictures.length > 0 && options.length === 0;
   if (!q.question) q.refused = `${id} (line ${line}) has no "The question:" line.`;
+  else if (picturesOnly) q.picturesOnly = true;
   else if (options.length < 2) q.refused = `${id} (line ${line}) lists ${options.length} option${options.length === 1 ? "" : "s"}; a choice needs at least two, numbered under "Options:".`;
   else if (recs !== 1 && BREAK !== "two-recommended-shown") q.refused = `${id} (line ${line}) marks ${recs} options "(recommended)"; exactly one must be.`;
   return q;
@@ -354,12 +370,19 @@ function readQuestions() {
   else {
     for (const m of inboxMessages()) {
       const a = ANSWER_LINE.exec(m.body);
-      if (a) answers.set(a[1], { choice: a[2].trim(), message: m.id, at: m.at, status: m.status });
+      if (!a) continue;
+      const verdicts = a[1] === "Pictures" ? [...m.body.matchAll(/^- (\S+): (.*)$/gm)].map((v) => ({ file: v[1], verdict: v[2].trim() })) : null;
+      answers.set(`${a[1]}:${a[2]}`, { choice: a[3].trim(), verdicts, message: m.id, at: m.at, status: m.status });
     }
   }
   // a question titled "Example: ..." is the template's illustration, hidden like the tables' "Example:" rows, and counted
   const real = found.filter((q) => !/^example:/i.test(q.title));
-  const questions = real.map((q) => ({ ...questionFields(q.id, q.title, q.body, q.line), answer: answers.get(q.id) || null }));
+  const questions = real.map((q) => {
+    const f = questionFields(q.id, q.title, q.body, q.line);
+    // a pictures-only question is answered by its pictures' message; any other by its "Answer to" line
+    return { ...f, answer: answers.get(`${f.picturesOnly ? "Pictures" : "Answer"}:${q.id}`) || null,
+      pictureVerdicts: (answers.get(`Pictures:${q.id}`) || {}).verdicts || null };
+  });
   return {
     questions,
     examplesHidden: found.length - real.length,
@@ -386,6 +409,39 @@ function answerText(body) {
     choice = o ? `${o.n}. ${o.text}${o.recommended ? " (the recommended one)" : ""}` : `${body.option}.`;
   }
   return { id: q.id, choice, text: `Answer to ${q.id}: ${choice}` + (note ? `\n\nNote: ${note}` : "") };
+}
+
+// One Send from the pictures tray: every picture the question lists gets its line -- yes, no, say more, or "no verdict" -- in one
+// message, so a picture left unmarked is said, never silently dropped.
+function picturesText(body) {
+  const qs = readQuestions();
+  if (qs.absent) return { refused: qs.absent };
+  const q = qs.questions.find((x) => x.id === body.question);
+  if (!q) return { refused: `There is no question ${String(body.question).slice(0, 20)} in QUESTIONS.md.` };
+  if (q.refused) return { refused: `${q.id} cannot be answered until it is fixed: ${q.refused}` };
+  if (!q.pictures.length) return { refused: `${q.id} lists no pictures.` };
+  const given = body.verdicts && typeof body.verdicts === "object" ? body.verdicts : {};
+  const listed = new Set(q.pictures.map((p) => p.file));
+  for (const [file, v] of Object.entries(given)) {
+    if (!listed.has(file)) return { refused: `${q.id} lists no picture named ${String(file).slice(0, 60)}.` };
+    if (!VERDICTS[v]) return { refused: `A picture's verdict is yes, no or more, not ${String(v).slice(0, 20)}.` };
+    if (q.pictures.find((p) => p.file === file).missing) return { refused: `${file} is missing, so it cannot be judged.` };
+  }
+  if (!Object.keys(given).length) return { refused: "No picture was marked; nothing is sent." };
+  const lines = q.pictures
+    .filter((p) => BREAK !== "verdict-dropped" || given[p.file])
+    .map((p) => `- ${p.file}: ${given[p.file] ? VERDICTS[given[p.file]] : "no verdict"}${p.missing ? " (the picture is missing)" : ""}`);
+  const note = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
+  const marked = Object.keys(given).length;
+  const choice = `${marked} of ${q.pictures.length} picture${q.pictures.length === 1 ? "" : "s"} marked`;
+  return { id: q.id, choice, text: `Pictures for ${q.id}: ${choice}\n\n${lines.join("\n")}` + (note ? `\n\nNote: ${note}` : "") };
+}
+
+// A question's picture, by its question and its name only, from .bench/pictures/<Q-id>/; anything else is "no such picture".
+function pictureFile(qid, name) {
+  if (BREAK === "picture-path-escape") return path.join(PROJECT, PICTURES, qid, name);
+  if (!/^Q-\d+$/.test(qid) || !PICTURE_NAME.test(name) || name !== path.basename(name)) return null;
+  return path.join(PROJECT, PICTURES, qid, name);
 }
 
 function appendInbox(text) {
@@ -474,7 +530,7 @@ function readAbout() {
 
 const ASSETS = new Set(fs.existsSync(path.join(HERE, "assets")) ? fs.readdirSync(path.join(HERE, "assets")) : []);
 const TYPES = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml",
-  ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
+  ".webp": "image/webp", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
 // The rooms: the .js and .css files in ROOMS when the bench starts, by name only. A room is one .js file whose tab the page adds.
 const ROOM_NAME = /^[a-z0-9][a-z0-9-]*\.(js|css)$/;
 const ROOM_FILES = new Set(fs.existsSync(ROOMS) ? fs.readdirSync(ROOMS).filter((n) => ROOM_NAME.test(n)) : []);
@@ -608,6 +664,23 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, appendInbox(text));
     }
     if (req.method === "GET" && url.pathname === "/api/questions") { touch(); return json(res, 200, readQuestions()); }
+    if (req.method === "GET" && url.pathname.startsWith("/pictures/")) {
+      const [qid, ...rest] = url.pathname.slice("/pictures/".length).split("/");
+      const p = pictureFile(decodeURIComponent(qid), decodeURIComponent(rest.join("/")));
+      if (!p || !fs.existsSync(p) || !fs.statSync(p).isFile()) return refuse(res, 404, "No such picture.");
+      return send(res, 200, TYPES[path.extname(p).toLowerCase()] || "application/octet-stream", fs.readFileSync(p));
+    }
+    if (req.method === "POST" && url.pathname === "/api/pictures") {
+      if (!keyOk(req)) return refuse(res, 403, "This launch's key is missing; reload the page.");
+      let body;
+      try { body = JSON.parse(await readBody(req, 16 * KB)); } catch { return refuse(res, 400, "The verdicts could not be read."); }
+      const a = picturesText(body || {});
+      if (a.refused) return refuse(res, 400, a.refused);
+      touch();
+      const sent = appendInbox(a.text);
+      if (BREAK === "answered-from-click") clicked.set(`Pictures:${a.id}`, { choice: a.choice, message: sent.id, at: sent.at, status: "waiting" });
+      return json(res, 200, { ...sent, question: a.id, choice: a.choice });
+    }
     if (req.method === "POST" && url.pathname === "/api/answer") {
       if (!keyOk(req)) return refuse(res, 403, "This launch's key is missing; reload the page.");
       let body;
@@ -616,7 +689,7 @@ const server = http.createServer(async (req, res) => {
       if (a.refused) return refuse(res, 400, a.refused);
       touch();
       const sent = appendInbox(a.text);
-      if (BREAK === "answered-from-click") clicked.set(a.id, { choice: a.choice, message: sent.id, at: sent.at, status: "waiting" });
+      if (BREAK === "answered-from-click") clicked.set(`Answer:${a.id}`, { choice: a.choice, message: sent.id, at: sent.at, status: "waiting" });
       return json(res, 200, { ...sent, question: a.id, choice: a.choice });
     }
     return refuse(res, 404, "Nothing here.");
@@ -677,7 +750,9 @@ const SCRATCH_FILES = {
     "## Q-003 · One option", "", "The question: Ship it?", "Options:", "1. Yes (recommended)", "",
     "## Q-004 · Already answered", "", "The question: Count hyphenated words as one?", "Options:", "1. As one (recommended)",
     "2. As two", "",
-    "## Q-005 · Example: the template's illustration", "", "The question: Shown?", "Options:", "1. No (recommended)", "2. Yes", ""],
+    "## Q-005 · Example: the template's illustration", "", "The question: Shown?", "Options:", "1. No (recommended)", "2. Yes", "",
+    "## Q-006 · The new screens", "", "The question: Do these screens look right?", "Pictures:", "- home.png -- the home screen",
+    "- menu.png -- the menu, open", "- gone.png -- a picture nobody saved", ""],
   "INBOX.md": ["# INBOX", "", "## M-001 · 2026-01-01 09:00 · read 09:05", "", "Answer to Q-004: 1. As one (the recommended one)", ""],
 };
 
@@ -777,6 +852,10 @@ async function selfTest() {
   const rooms = path.join(tmp, "rooms");
   for (const d of [full, empty, rooms]) fs.mkdirSync(d);
   for (const [name, lines] of Object.entries(SCRATCH_FILES)) fs.writeFileSync(path.join(full, name), lines.join("\n"));
+  // two real one-pixel pictures for Q-006; its third, gone.png, is left missing on purpose
+  const pixel = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  fs.mkdirSync(path.join(full, PICTURES, "Q-006"), { recursive: true });
+  for (const name of ["home.png", "menu.png"]) fs.writeFileSync(path.join(full, PICTURES, "Q-006", name), pixel);
   fs.writeFileSync(path.join(rooms, "hello.js"), 'export const title = "Hello";\n');
   fs.writeFileSync(path.join(rooms, "notes.txt"), "not a room\n");
   fs.writeFileSync(path.join(tmp, "secret.txt"), "outside the rooms folder\n");
@@ -870,6 +949,36 @@ async function selfTest() {
       click.code === 200 && (added.match(/^## M-\d+ · /gm) || []).length === 1 &&
       added.includes("Answer to Q-001: 1. Keep them in a file") && nowAnswered && nowAnswered.answer,
       `HTTP ${click.code}; ${(added.match(/^## M-\d+ · /gm) || []).length} message(s) added; Q-001 ${nowAnswered && nowAnswered.answer ? "answered" : "not answered"}`);
+
+    const pics = (q("Q-006").pictures || []);
+    const shot = await request(port, "GET", "/pictures/Q-006/home.png");
+    const gone = pics.find((p) => p.file === "gone.png") || {};
+    const verdicts = (body) => request(port, "POST", "/api/pictures", { origin: own, key, body: JSON.stringify(body) });
+    const judgeGone = await verdicts({ question: "Q-006", verdicts: { "gone.png": "yes" } });
+    row("a question's pictures are served by name, and a missing one is shown as missing and cannot be judged",
+      shot.code === 200 && shot.headers["content-type"] === "image/png" && pics.length === 3 && gone.missing === true &&
+      pics.filter((p) => p.missing).length === 1 && judgeGone.code === 400,
+      `home.png HTTP ${shot.code}; ${pics.length} listed, missing: ${pics.filter((p) => p.missing).map((p) => p.file).join(", ") || "none"}; ` +
+      `a verdict on gone.png HTTP ${judgeGone.code}`);
+    const escaped = [];
+    for (const where of ["/pictures/Q-006/..%2F..%2F..%2FSTATE.md", "/pictures/Q-006/..%2F..%2F..%2FQUESTIONS.md",
+      "/pictures/..%2F..%2F..%2FSTATE.md", "/pictures/Q-006/home.png%2F..%2F..%2F..%2F..%2FSTATE.md"]) {
+      const r = await request(port, "GET", where);
+      if (r.code !== 404) escaped.push(`${where} HTTP ${r.code}`);
+    }
+    row("a picture name that leaves its question's folder is refused", !escaped.length,
+      escaped.length ? escaped.join("; ") : "four names, each 404");
+    const badPick = await verdicts({ question: "Q-006", verdicts: { "other.png": "yes" } });
+    const before3 = fs.readFileSync(path.join(full, INBOX), "utf8");
+    const sentPics = await verdicts({ question: "Q-006", verdicts: { "home.png": "yes", "menu.png": "no" } });
+    const msg3 = fs.readFileSync(path.join(full, INBOX), "utf8").slice(before3.length);
+    const q6 = (await questions()).find((x) => x.id === "Q-006") || {};
+    row("one Send names every picture, an unmarked one as 'no verdict', and a picture it does not list is refused",
+      badPick.code === 400 && sentPics.code === 200 && (msg3.match(/^## M-\d+ · /gm) || []).length === 1 &&
+      /- home\.png: yes/.test(msg3) && /- menu\.png: no/.test(msg3) && /- gone\.png: no verdict/.test(msg3) &&
+      Boolean(q6.answer),
+      `unlisted picture HTTP ${badPick.code}; send HTTP ${sentPics.code}; lines: ${(msg3.match(/^- .*$/gm) || []).join(" / ")}; ` +
+      `Q-006 ${q6.answer ? "answered" : "not answered"}`);
     const before = snapshot(full);
     const sent = await request(port, "POST", "/api/inbox", { origin: own, key, body: msg });
     const diff = changed(before, snapshot(full));

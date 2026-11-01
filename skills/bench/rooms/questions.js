@@ -39,6 +39,73 @@ async function send(q, option, note, status) {
   }
 }
 
+// The pictures tray: each picture with yes / no / say more; one Send writes every picture's line, an unmarked one as "no verdict".
+// A picture the question names but the folder lacks is shown as missing, never as a blank tile.
+function tray(q, redraw) {
+  const box = el("div", "qtray");
+  const given = {};
+  const past = new Map((q.pictureVerdicts || []).map((v) => [v.file, v.verdict]));
+  for (const p of q.pictures) {
+    const tile = el("figure", "qpic");
+    if (p.problem) tile.append(el("div", "qpic-missing", `${p.file}: ${p.problem}`));
+    else if (p.missing) tile.append(el("div", "qpic-missing", `missing: ${p.file} is not in .bench/pictures/${q.id}/`));
+    else {
+      const img = el("img");
+      img.src = p.url;
+      img.alt = p.caption || p.file;
+      img.loading = "lazy";
+      const open = el("a");
+      open.href = p.url;
+      open.target = "_blank";
+      open.rel = "noopener";
+      open.append(img);
+      tile.append(open);
+    }
+    tile.append(el("figcaption", null, p.caption ? `${p.file} · ${p.caption}` : p.file));
+    if (past.has(p.file)) tile.append(el("p", "src", `sent: ${past.get(p.file)}`));
+    if (!p.problem && !p.missing) {
+      const row = el("div", "qverdicts");
+      for (const [v, label] of [["yes", "Yes"], ["no", "No"], ["more", "Say more"]]) {
+        const b = el("button", "qopt plain qv", label);
+        b.addEventListener("click", () => {
+          given[p.file] = given[p.file] === v ? undefined : v;
+          if (!given[p.file]) delete given[p.file];
+          for (const x of row.children) x.classList.toggle("on", x === b && given[p.file] === v);
+        });
+        row.append(b);
+      }
+      tile.append(row);
+    }
+    box.append(tile);
+  }
+  const note = el("textarea", "qnotebox");
+  note.placeholder = "A note with your verdicts (optional)";
+  note.maxLength = 2000;
+  const status = el("p", "qnote");
+  const go = el("button", "btn", "Send verdicts");
+  go.addEventListener("click", async () => {
+    status.className = "qnote";
+    status.textContent = "Sending...";
+    try {
+      const r = await fetch("/api/pictures", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-Bench-Key": KEY },
+        body: JSON.stringify({ question: q.id, verdicts: given, note: note.value }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.refused || `HTTP ${r.status}`);
+      redraw();
+    } catch (e) {
+      status.className = "qnote bad";
+      status.textContent = `Not sent: ${e.message}`;
+    }
+  });
+  const foot = el("div", "send");
+  foot.append(go, el("small", null, "every picture gets a line; one you leave unmarked is sent as \"no verdict\""));
+  const wrap = el("div");
+  wrap.append(box, note, foot, status);
+  return wrap;
+}
+
 function card(q, redraw) {
   const c = el("section", "card qcard");
   const top = el("div", "qtop");
@@ -52,11 +119,13 @@ function card(q, redraw) {
   }
   if (q.what) c.append(el("p", "qwhat", q.what));
   c.append(el("p", "qask", q.question));
+  if (q.pictures.length) c.append(tray(q, redraw));
   if (q.answer) {
     c.append(el("p", "qdone", `Your answer: ${q.answer.choice}`),
       el("p", "src", `INBOX.md ${q.answer.message} · ${q.answer.at} · ${q.answer.status}`));
     return c;
   }
+  if (q.picturesOnly) return c;
   const opts = [...q.options].sort((a, b) => Number(b.recommended) - Number(a.recommended));
   const note = el("textarea", "qnotebox");
   note.placeholder = "A note with your answer (optional)";

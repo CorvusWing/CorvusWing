@@ -79,7 +79,7 @@ node <this skill's folder>/shortcut.mjs --project <the project folder>
 | Message Claude | INBOX.md | there are no messages yet |
 | About CorvusWing | the kit's README.md, LICENSE and NOTICE.md (see Install in the README) | they are not beside the bench |
 | A room's tab | the room's `.js` file in the rooms folder | its tab says it could not be opened, and why |
-| Questions (a room) | QUESTIONS.md's `## Q-nnn` sections, and INBOX.md for which are answered | QUESTIONS.md is absent; a question with fewer than two options, or not exactly one `(recommended)`, shows as "cannot be answered yet" with the reason |
+| Questions (a room) | QUESTIONS.md's `## Q-nnn` sections, their pictures in `.bench/pictures/Q-nnn/`, and INBOX.md for which are answered | QUESTIONS.md is absent; a question with fewer than two options, or not exactly one `(recommended)`, shows as "cannot be answered yet" with the reason |
 
 Rows that start with "Example:" are the templates' illustrations. The bench hides them and says how
 many it hid.
@@ -154,13 +154,28 @@ The bench never edits QUESTIONS.md. A question reads answered once INBOX.md hold
 `Answer to Q-nnn:`, from a click or written by hand; the newest one wins. The agent acts on it like any
 other message. A question titled `Example: ...` is the template's illustration and is hidden.
 
+**Pictures**: a question may list screenshots under `Pictures:`, saved in `.bench/pictures/Q-nnn/`
+(PNG, JPEG or WebP; the bench serves only those names, from only that folder). Each gets Yes, No and
+Say more; one Send writes one message with a line for every picture, an unmarked one as "no verdict":
+
+```text
+Pictures for Q-006: 2 of 3 pictures marked
+
+- home.png: yes
+- menu.png: no
+- gone.png: no verdict (the picture is missing)
+```
+
+A picture the question names but the folder lacks is shown as missing, never as a blank tile, and
+cannot be judged. A question with pictures and no options is answered by this message.
+
 ## What it never does
 
 - **It is reachable from this machine only.** It listens on 127.0.0.1, answers only requests that
   name it as their host, and refuses requests from other web pages: a message is accepted only with
   the key this launch put into its own page. A page on another site cannot read the project's notes
   or write into the inbox an agent obeys.
-- **It writes one file**: INBOX.md, one appended message per Send or per answer. It reads only the
+- **It writes one file**: INBOX.md, one appended message per Send, per answer or per set of picture verdicts. It reads only the
   files in the table above.
 - **It loads nothing from the internet.** No fonts, no scripts, no tracking. The page's own rules
   forbid it.
