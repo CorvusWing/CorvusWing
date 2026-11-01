@@ -57,8 +57,9 @@ class TestBench(unittest.TestCase):
                 self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
                 self.assertEqual(support.red_rows(r.stdout), [EXPECTED_RED[name]], r.stdout)
 
-    def test_a_lasting_git_failure_is_refused_in_words_after_three_tries(self):
-        for fault, words in (("git-denied", "Permission denied"), ("git-index-held", "unable to write new index file")):
+    def test_a_lasting_setup_failure_is_refused_in_words_after_three_tries(self):
+        for fault, words in (("git-denied", "Permission denied"), ("git-index-held", "unable to write new index file"),
+                             ("get-dropped", "ECONNRESET")):
             with self.subTest(fault=fault):
                 r = node("--self-test", "--break", fault)
                 self.assertEqual(r.returncode, 78, r.stdout + r.stderr)

@@ -68,7 +68,7 @@ const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-e
   "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped",
   "refused-as-fail", "refused-as-pass", "missing-as-pass", "pill-missing-as-pass"];
 // A fault, unlike a break, plants a failure the self-test must REFUSE on (exit 78, "could not look"), never print as rows.
-const FAULTS = ["git-denied", "git-index-held"];
+const FAULTS = ["git-denied", "git-index-held", "get-dropped"];
 const BREAK = arg("--break", "");
 
 if (BREAK && ![...BREAKS, ...FAULTS].includes(BREAK)) {
@@ -869,8 +869,27 @@ function snapshot(dir) {
 }
 const changed = (a, b) => [...new Set([...a.keys(), ...b.keys()])].filter((k) => a.get(k) !== b.get(k)).sort();
 
-// One request to the scratch bench; it rejects (could not look) when the bench does not answer at all.
-function request(port, method, where, { host, origin, key, body } = {}) {
+// One request to the scratch bench; it rejects (could not look) when the bench does not answer at all. A GET whose connection
+// is dropped (on Windows a loopback connection is sometimes reset under load) is tried again, at most three times in all, waits
+// of 0.5 s and 1 s; a POST is never repeated, since it may have written. The get-dropped fault plants a lasting drop to prove
+// the bound. The self-test's own requests only; the bench's page and its readers are never retried.
+async function request(port, method, where, opts = {}) {
+  let tries = 1;
+  for (;;) {
+    try {
+      if (BREAK === "get-dropped" && method === "GET" && where === "/api/state") {
+        throw new Error(`GET ${where} got no answer from the scratch bench: ECONNRESET read ECONNRESET (planted by --break get-dropped)`);
+      }
+      return await requestOnce(port, method, where, opts);
+    } catch (e) {
+      // a dropped connection only; a bench that does not answer within the wait is never waited on again
+      if (method !== "GET" || !/ECONNRESET|ECONNABORTED|EPIPE/.test(e.message) || tries >= 3) throw new Error(`${e.message} (after ${tries} ${tries === 1 ? "try" : "tries"})`);
+      await new Promise((r) => setTimeout(r, 500 * tries));
+      tries++;
+    }
+  }
+}
+function requestOnce(port, method, where, { host, origin, key, body } = {}) {
   return new Promise((resolve, reject) => {
     const headers = { host: host || `127.0.0.1:${port}` };
     if (origin) headers.origin = origin;
@@ -946,9 +965,11 @@ async function selfTest() {
   try {
     for (const args of [["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "start"]]) {
       // On Windows a file git has just written can be held for a moment by another program (a virus scanner, the search
-      // indexer), and git stops with "Permission denied", or, when the held file is its index, "unable to write new index
-      // file". The scratch project is a setup, not what is checked: those two errors, by name, are tried again, at most three times in all (waits of 0.5 s and 1 s between them), and a failure that outlasts the
-      // three is refused in words, with the count. The git-denied break plants that lasting failure to prove it.
+      // indexer), and git stops -- in a different wording each time ("Permission denied", "unable to write new index file",
+      // "couldn't set 'HEAD'"). The scratch project is a setup, not what is checked: ANY git failure here is tried again, at
+      // most three times in all (waits of 0.5 s and 1 s between them), and a failure that outlasts the three is refused in
+      // words, with git's own words and the count. The two git faults plant that lasting failure to prove it. This applies to
+      // the self-test's scratch setup only; what the page reports about a real project's git is never retried.
       const planted = {
         "git-denied": "error: unable to write file .git/objects/00/0: Permission denied",
         "git-index-held": "fatal: unable to write new index file",
@@ -958,7 +979,7 @@ async function selfTest() {
         : gitIn(full, args));
       let failed = await attempt();
       let tries = 1;
-      for (; failed && /Permission denied|unable to write new index file/.test(failed) && tries < 3; tries++) {
+      for (; failed && tries < 3; tries++) {
         await new Promise((r) => setTimeout(r, 500 * tries));
         failed = await attempt();
       }
