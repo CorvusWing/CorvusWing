@@ -149,12 +149,12 @@ A skill is a folder with a SKILL.md file in it. Claude Code looks for skills in 
 5. Start a new Claude Code session so it picks up the skills. In recent versions, typing `/` lists
    them (for example `/start-here`).
 
-The four scripts (`two-strikes`, `test-freeze`, `decide-first`, `bake-off`) need Python 3.8 or newer and,
-for two of them, git. They use no packages. Python is `python3` on macOS and Linux, and `python` on Windows.
+The four scripts (`two-strikes`, `test-freeze`, `decide-first`, `bake-off`) need Python 3.8 or newer;
+`test-freeze` and `bake-off` also need git. They use no packages. Python is `python3` on macOS and Linux, and `python` on Windows.
 Once installed for every project, each script is at `~/.claude/skills/<skill>/scripts/`. Commit what they
 write into a project with the rest of its notes: `strikes.jsonl` (two-strikes), `decisions/` (decide-first)
-and `bake-off/` (bake-off); test-freeze writes nothing there. To check the kit itself, from the folder this
-repository lives in:
+and `bake-off/` (bake-off); test-freeze writes nothing there. To check the kit itself, from the top folder of
+this repository (the one holding this README):
 
     python3 -m unittest discover -s tests
 
