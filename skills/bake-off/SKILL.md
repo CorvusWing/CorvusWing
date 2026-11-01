@@ -25,8 +25,9 @@ next one begins:
 4. **Candidates.** Each candidate on its own branch, started from the control, each with a **kill line**: the
    result that would make that candidate dead, written down and committed before the candidate's code, and before
    its first run. A candidate that hits its kill line is dead. Its tests are not.
-5. **Scoreboard.** Every candidate and the control on every rule, in one table. Changes that other parts of the
-   system made are listed with their before and after. They are never counted as failures.
+5. **Scoreboard.** Every candidate and the control on every rule, in one table. When a candidate changes what some
+   other part of the system produces (an output format, a neighboring result), the change is listed with its before
+   and after. It is never counted as a failure.
 6. **Pick.** Made by a person, with a reason written in the record. The candidate that builds a piece does not
    pick it, and a candidate whose kill line was hit cannot be picked.
 
@@ -110,9 +111,10 @@ what a reviewer reads to see that the comparison was fair.
 - Write the control before the candidates. A control written after the candidates tends to be a control the
   candidates already beat.
 - Write each kill line, commit it, then build and run the candidate. Say what result would kill it.
-- If a rule turns out to be unfair, change it on purpose: write a new rule, run the old and new scores side by
-  side (the old first), and record the change in the record. Never change a rule silently to make a candidate pass;
-  the frozen-files check refuses that.
+- If a rule turns out to be unfair, change it on purpose, in a new bake-off: its rules commit holds the fairer
+  rule, every candidate and the control are scored on it again, and the pick's reason gives the old scores beside
+  the new ones (the old first). The record has no field for editing a rule in place, on purpose. Never change a
+  rule silently to make a candidate pass; the frozen-files check refuses that.
 - A piece with no candidate that passes the rules is not a failure of the method. Write that down as the result.
 
 ## Limits, said plainly
