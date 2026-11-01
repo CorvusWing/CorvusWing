@@ -66,7 +66,7 @@ const SELF_TEST = process.argv.includes("--self-test");
 const SELF_TEST_CHILD = process.argv.includes("--self-test-child"); // a bench the self-test started; only it may run broken
 const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-escape", "second-write",
   "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped",
-  "refused-as-fail", "refused-as-pass", "missing-as-pass"];
+  "refused-as-fail", "refused-as-pass", "missing-as-pass", "pill-missing-as-pass"];
 // A fault, unlike a break, plants a failure the self-test must REFUSE on (exit 78, "could not look"), never print as rows.
 const FAULTS = ["git-denied"];
 const BREAK = arg("--break", "");
@@ -253,6 +253,7 @@ function readChecks(head) {
   const last = new Map();
   let runs = 0;
   let unparsed = 0;
+  let newestCommit = null;
   for (const raw of text.split(/\r?\n/)) {
     if (!raw.trim()) continue;
     let o;
@@ -262,6 +263,7 @@ function readChecks(head) {
     runs++;
     const result = String(o.result ?? o.status ?? o.outcome ?? "").toUpperCase();
     const seconds = Number(o.seconds ?? o.secs ?? o.duration);
+    if (o.commit) newestCommit = String(o.commit);
     last.set(String(name), {
       name: String(name), result: result || null, seconds: Number.isFinite(seconds) ? seconds : null,
       at: when(o.time ?? o.at ?? o.ts ?? o.when ?? o.date), commit: o.commit ? String(o.commit) : null,
@@ -270,8 +272,17 @@ function readChecks(head) {
   const gates = [...last.values()].map((g) => ({
     ...g,
     atHead: head && g.commit ? head.startsWith(g.commit) || g.commit.startsWith(head) : null,
+    notRunAtNewest: BREAK === "pill-missing-as-pass" ? false : notRunAt(g.commit, newestCommit),
   }));
-  return { ledger: LEDGER, gates, runs, unparsed };
+  // the header pill's count: a check passes only by a PASS at the ledger's newest commit; one with no line there is "not run"
+  const current = gates.filter((g) => !g.notRunAtNewest);
+  const pill = {
+    total: gates.length, newestCommit,
+    passed: current.filter((g) => markOf(g.result) === "pass").length,
+    failing: current.filter((g) => markOf(g.result) === "fail").length,
+    notRun: gates.length - current.length,
+  };
+  return { ledger: LEDGER, gates, runs, unparsed, newestCommit, pill };
 }
 
 // The checks history: every check's results in ledger order (oldest first, the newest HISTORY_RUNS kept), each a PASS, FAIL or
@@ -279,6 +290,11 @@ function readChecks(head) {
 // commit. A check with none there is "not run at the newest commit", never shown as passing. The bench does not recompute a gate's
 // fingerprint (that needs the files each gate reads); the gates skill's --status stays the word on STALE.
 const HISTORY_RUNS = 20;
+// The ONE definition of "not run at the newest commit", for the header pill (readChecks) and the history room (readHistory) alike:
+// the ledger has a newest commit, and this check's last line names another one, or none.
+function notRunAt(lastCommit, newestCommit) {
+  return Boolean(newestCommit && lastCommit !== newestCommit);
+}
 function markOf(result) {
   const r = String(result || "").toUpperCase();
   if (/^(PASS|PASSED|OK|GREEN|SUCCESS)$/.test(r)) return "pass";
@@ -317,7 +333,7 @@ function readHistory() {
     return {
       name, marks, runs: all.length, newest: last,
       slowest: times.length ? Math.max(...times) : null,
-      notRunAtNewest: BREAK === "missing-as-pass" ? false : Boolean(newestCommit && last.commit !== newestCommit),
+      notRunAtNewest: BREAK === "missing-as-pass" ? false : notRunAt(last.commit, newestCommit),
     };
   });
   return { ledger: LEDGER, checks, lines, unparsed, newestCommit, kept: HISTORY_RUNS };
@@ -1071,6 +1087,10 @@ async function selfTest() {
       check("docs").notRunAtNewest === true && check("unit tests").notRunAtNewest === false && h.newestCommit === "c5",
       `docs ${check("docs").notRunAtNewest ? "not run" : "shown as current"} at ${h.newestCommit}; ` +
       `unit tests ${check("unit tests").notRunAtNewest ? "not run" : "current"}`);
+    const pill = (JSON.parse((await request(bench2.port, "GET", "/api/state")).text).checks || {}).pill || {};
+    row("the header pill counts a check with no line at the newest commit as 'not run', never passed",
+      pill.total === 3 && pill.passed === 2 && pill.notRun === 1 && pill.failing === 0 && pill.newestCommit === "c5",
+      `${pill.passed} of ${pill.total} passed, ${pill.notRun} not run at ${pill.newestCommit}, ${pill.failing} failing`);
   } catch (e) {
     console.log(`bench self-test REFUSED -- it could not look: ${e.message}`);
     return 78;

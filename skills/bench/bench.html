@@ -254,12 +254,12 @@ function renderPills(d) {
   if (c.absent) {
     pills.push(kids(el("span", "pill"), el("i", "dot"), "Checks: no ledger yet"));
   } else {
-    const n = c.gates.length;
-    const pass = c.gates.filter((g) => g.result === "PASS").length;
-    const fail = c.gates.filter((g) => g.result === "FAIL").length;
+    // the count is the server's (readChecks' pill): a check with no line at the ledger's newest commit is "not run", never passed
+    const { total: n, passed: pass, failing: fail, notRun, newestCommit } = c.pill;
     const older = c.gates.filter((g) => g.atHead === false).length;
-    const cls = fail ? "bad" : older || pass < n ? "warn" : "ok";
+    const cls = fail ? "bad" : notRun || older || pass < n ? "warn" : "ok";
     const p = kids(el("span", "pill"), el("i", "dot " + cls), "Checks ", el("strong", null, `${pass} of ${n}`), " passed");
+    if (notRun) p.append(`, ${notRun} not run at ${String(newestCommit).slice(0, 9)}`);
     if (fail) p.append(` · ${fail} failing`);
     if (older) p.append(` · ${older} at an older commit`);
     pills.push(p);
@@ -357,7 +357,7 @@ function renderChecks(c) {
   const out = c.gates.map((g) => {
     const cls = g.result === "PASS" ? "ok" : g.result === "FAIL" ? "bad" : "warn";
     const right = [g.result || "no result", g.seconds != null ? `${g.seconds} s` : null, g.at ? ago(g.at) : null].filter(Boolean).join(" · ");
-    return kids(el("div", "row"), el("i", "dot " + cls), el("span", null, g.name), g.atHead === false ? chip("older commit", "warn") : null, el("span", "r", right));
+    return kids(el("div", "row"), el("i", "dot " + cls), el("span", null, g.name), g.notRunAtNewest ? chip("not run at newest", "warn") : g.atHead === false ? chip("older commit", "warn") : null, el("span", "r", right));
   });
   out.push(src(`${c.ledger} · ${c.runs} run${c.runs === 1 ? "" : "s"} recorded` + (c.unparsed ? ` · ${c.unparsed} line${c.unparsed === 1 ? "" : "s"} could not be read` : "")));
   put($("checks"), out);

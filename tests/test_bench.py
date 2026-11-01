@@ -26,6 +26,7 @@ EXPECTED_RED = {
     "refused-as-fail": "a REFUSED run is its own mark, never a pass or a fail",
     "refused-as-pass": "a REFUSED run is its own mark, never a pass or a fail",
     "missing-as-pass": "a check with no line at the newest commit reads 'not run', never passing",
+    "pill-missing-as-pass": "the header pill counts a check with no line at the newest commit as 'not run', never passed",
 }
 
 
