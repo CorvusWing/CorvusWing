@@ -317,14 +317,19 @@ function appendInbox(text) {
   return { id, at };
 }
 
+let gitSlow = false; // the last git call was stopped by its timeout: slow is not the same as absent
 function git(args) {
   return new Promise((resolve) => {
-    execFile("git", ["-C", PROJECT, ...args], { windowsHide: true, timeout: 4000 }, (err, out) => resolve(err ? null : out.trim()));
+    execFile("git", ["-C", PROJECT, ...args], { windowsHide: true, timeout: 4000 }, (err, out) => {
+      gitSlow = Boolean(err && err.killed);
+      resolve(err ? null : out.trim());
+    });
   });
 }
 
 async function readGit() {
   if ((await git(["rev-parse", "--is-inside-work-tree"])) !== "true") {
+    if (gitSlow) return { absent: "git did not answer within 4 seconds (the machine may be busy); this panel fills on the next read." };
     return { absent: "This project is not a git repository, or git is not installed." };
   }
   const branch = await git(["rev-parse", "--abbrev-ref", "HEAD"]);
@@ -562,17 +567,31 @@ const SCRATCH_FILES = {
   ".gates.jsonl": ['{"name":"unit tests","result":"PASS","seconds":1.2,"time":"2026-01-01T00:00:00Z","commit":"abc1234"}', ""],
 };
 
+// The self-test's waits are generous, because a busy machine is slow, not wrong; anything that still fails to answer is a
+// refusal (exit 78, "could not look"), never a red row: a check that did not happen must never read as a result.
+const SELF_TEST_WAIT_MS = 60 * 1000;
+
+// Another run of this script (--check); it rejects when that run did not finish cleanly.
 function runNode(args) {
-  return new Promise((resolve) => {
-    execFile(process.execPath, [fileURLToPath(import.meta.url), ...args], { windowsHide: true, timeout: 20000 },
-      (err, out, errOut) => resolve({ code: err ? err.code ?? 1 : 0, out: String(out) + String(errOut) }));
+  return new Promise((resolve, reject) => {
+    execFile(process.execPath, [fileURLToPath(import.meta.url), ...args], { windowsHide: true, timeout: SELF_TEST_WAIT_MS },
+      (err, out, errOut) => (err ? reject(new Error(`serve.mjs ${args.join(" ")} did not finish` +
+        `${err.killed ? ` within ${SELF_TEST_WAIT_MS / 1000} s` : ` (exit ${err.code})`}: ${String(errOut).trim().slice(-200)}`))
+        : resolve(String(out))));
   });
 }
 
+// null when git did it; otherwise what git said (its last lines, past any warnings), how long it took, and whether the wait ended it
 function gitIn(dir, args) {
+  const t0 = Date.now();
   return new Promise((resolve) => {
-    execFile("git", ["-C", dir, "-c", "user.name=test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", ...args],
-      { windowsHide: true, timeout: 10000 }, (err) => resolve(!err));
+    execFile("git", ["-C", dir, "-c", "user.name=test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false",
+      "-c", "core.autocrlf=false", ...args], { windowsHide: true, timeout: SELF_TEST_WAIT_MS }, (err, out, errOut) => {
+      if (!err) return resolve(null);
+      const said = String(errOut || err.message).split(/\r?\n/).filter((l) => l.trim() && !/^warning:/.test(l)).join(" / ");
+      resolve(`git ${args[0]} failed after ${Date.now() - t0} ms${err.killed ? ` (stopped after ${SELF_TEST_WAIT_MS / 1000} s)` : ""}, ` +
+        `exit ${err.code}: ${said.slice(-300) || "it printed nothing"}`);
+    });
   });
 }
 
@@ -592,8 +611,9 @@ function snapshot(dir) {
 }
 const changed = (a, b) => [...new Set([...a.keys(), ...b.keys()])].filter((k) => a.get(k) !== b.get(k)).sort();
 
+// One request to the scratch bench; it rejects (could not look) when the bench does not answer at all.
 function request(port, method, where, { host, origin, key, body } = {}) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const headers = { host: host || `127.0.0.1:${port}` };
     if (origin) headers.origin = origin;
     if (key) headers["x-bench-key"] = key;
@@ -603,7 +623,8 @@ function request(port, method, where, { host, origin, key, body } = {}) {
       res.on("data", (c) => parts.push(c));
       res.on("end", () => resolve({ code: res.statusCode, headers: res.headers, text: Buffer.concat(parts).toString("utf8") }));
     });
-    req.on("error", (e) => resolve({ code: 0, headers: {}, text: e.message }));
+    req.setTimeout(SELF_TEST_WAIT_MS, () => req.destroy(new Error(`no answer within ${SELF_TEST_WAIT_MS / 1000} s`)));
+    req.on("error", (e) => reject(new Error(`${method} ${where} got no answer from the scratch bench: ${e.code || ""} ${e.message}`)));
     if (body != null) req.write(body);
     req.end();
   });
@@ -616,7 +637,10 @@ function startBench(project, rooms) {
       "--self-test-child", ...(BREAK ? ["--break", BREAK] : [])];
     const child = spawn(process.execPath, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
-    const timer = setTimeout(() => { child.kill(); reject(new Error(`no bench listening after 15 s: ${out.slice(-200)}`)); }, 15000);
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`no bench listening after ${SELF_TEST_WAIT_MS / 1000} s: ${out.slice(-200)}`));
+    }, SELF_TEST_WAIT_MS);
     const hear = (c) => {
       out += c;
       const m = /open http:\/\/127\.0\.0\.1:(\d+)\//.exec(out);
@@ -646,18 +670,30 @@ async function selfTest() {
   const row = (name, ok, detail) => rows.push({ name, ok: Boolean(ok), detail });
   let bench = null;
   try {
-    if (!(await gitIn(full, ["init", "-q"])) || !(await gitIn(full, ["add", "-A"])) || !(await gitIn(full, ["commit", "-q", "-m", "start"]))) {
-      console.log("bench self-test REFUSED -- git could not make the scratch project's first commit");
-      return 78;
+    for (const args of [["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "start"]]) {
+      // On Windows a file git has just written can be held for a moment by another program (a virus scanner, the search
+      // indexer), and git stops with "Permission denied". The scratch project is a setup, not what is checked: that one error
+      // is tried again, at most three times in all, and still refused in words after that.
+      let failed = await gitIn(full, args);
+      for (let again = 1; failed && /Permission denied/.test(failed) && again < 3; again++) {
+        await new Promise((r) => setTimeout(r, 500 * again));
+        failed = await gitIn(full, args);
+      }
+      if (failed) {
+        console.log(`bench self-test REFUSED -- git could not make the scratch project's first commit: ${failed}`);
+        return 78;
+      }
     }
     const filled = await runNode(["--project", full, "--check"]);
-    row("a full project reads 6 of 6 panels filled", /6 of 6 panels filled/.test(filled.out),
-      (/(\d) of 6 panels filled/.exec(filled.out) || ["no count"])[0]);
+    if (/git did not answer within/.test(filled)) throw new Error("git was too slow for the Git panel's read (the machine is busy)");
+    const notFilled = filled.split("\n").filter((l) => /^\s+(EMPTY|PARTLY)\s/.test(l)).map((l) => l.trim().slice(0, 60));
+    row("a full project reads 6 of 6 panels filled", /6 of 6 panels filled/.test(filled),
+      [(/(\d) of 6 panels filled/.exec(filled) || ["no count"])[0], ...notFilled].join("; "));
     const bare = await runNode(["--project", empty, "--check"]);
     const want = { "What's true now": "STATE.md", Next: "HANDOFF.md", Tasks: "PLAN.md", Decisions: "DECISIONS.md", Checks: ".gates.jsonl" };
     const missing = Object.entries(want).filter(([panel, file]) =>
-      !bare.out.split("\n").some((l) => l.includes("EMPTY") && l.includes(panel) && l.includes(file))).map(([p]) => p);
-    row("an empty project's panels read EMPTY, each naming its file", !missing.length && /0 of 6 panels filled/.test(bare.out),
+      !bare.split("\n").some((l) => l.includes("EMPTY") && l.includes(panel) && l.includes(file))).map(([p]) => p);
+    row("an empty project's panels read EMPTY, each naming its file", !missing.length && /0 of 6 panels filled/.test(bare),
       missing.length ? `not EMPTY with its file: ${missing.join(", ")}` : "five EMPTY, each with its file");
 
     bench = await startBench(full, rooms);
