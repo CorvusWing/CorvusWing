@@ -31,7 +31,7 @@ Seven steps, one for each letter. Each is done by a skill in this kit.
 | **P**lan | Start at "done" and work backwards to today; test the riskiest assumption first, with the cheapest probe that could prove it false. | `start-here`, `decide-first` |
 | **R**ecord | What is true, what is next and why things are the way they are live in short files every session reads, never in anyone's memory. | `session-close` |
 | **O**rder | Every task gets a written order first: its files, a size budget, a done-criterion, a cancel condition, and its own git branch; the second failure in a row of the same check stops it. | `scope-guard`, `two-strikes` |
-| **P**rove | "It works" means a check anyone can rerun, and every check is proven able to fail; a test is never weakened without a written reason, and a piece nobody has designed is compared on rules frozen before any candidate. | `gates`, `solution-integrity`, `test-freeze`, `bake-off` |
+| **P**rove | "It works" means a check anyone can rerun, and every check is proven able to fail; a test is never weakened without a written reason, and a piece nobody has designed is compared on rules frozen before any candidate; a surprising number is traced back to its cause before anyone acts on it. | `gates`, `solution-integrity`, `test-freeze`, `bake-off`, `trace-back` |
 | **H**and off | A session ends, or is summarized to free up room, without losing what cannot be worked out again; the next one tests the note before trusting it. | `compaction`, `context-guard` |
 | **E**volve | A mistake becomes a rule the same day, with its reason; a "cannot" is checked before it closes a door. | `holding-the-goal`, `working-discipline` |
 | **T**rust | Trust is earned by checking: every number on the bench comes from a file, and anything missing shows as missing. | `bench` |
@@ -109,6 +109,7 @@ In the reply, the agent should name the parts it used; if it does not, ask.
 | `skills/context-guard/` | Watches how full the session is; at about 85% it starts nothing new and has the note written before the automatic summary can come. |
 | `skills/solution-integrity/` | Twelve questions before, during and after a change. |
 | `skills/holding-the-goal/` | Questions to run before saying "cannot", and before saying "we should fix this". |
+| `skills/trace-back/` | Follows a surprising number back to its cause before anyone acts on it: reproduce it, rule out the test and the tool, reconcile, ask the system why, and turn what is not known into the plan. |
 | `skills/working-discipline/` | Habits for arriving in a codebase, reading, measuring, building and reporting. |
 | `skills/gates/` | Builds the check suite: one command, a ledger, a proof that each check can fail, and a progress window. One part per session, after start-here. |
 | `skills/bench/` | The bench: `serve.mjs` (a small server, Node 18 or newer, no packages), `bench.html` (the page), `shortcut.mjs` (puts its icon on the desktop), `rooms/` (extra tabs: Questions, a decision as one click and yes or no on screenshots; Checks history, each check's results over time), and its images: the icon, the screenshot, and this README's pictures. |
