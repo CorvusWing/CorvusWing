@@ -121,8 +121,12 @@ function card(q, redraw) {
   c.append(el("p", "qask", q.question));
   if (q.pictures.length) c.append(tray(q, redraw));
   if (q.answer) {
-    c.append(el("p", "qdone", `Your answer: ${q.answer.choice}`),
-      el("p", "src", `INBOX.md ${q.answer.message} · ${q.answer.at} · ${q.answer.status}`));
+    c.append(el("p", "qdone", `Your answer: ${q.answer.choice}`));
+    // the agent's reply is its own line in INBOX.md ("answered HH:MM: ..."); none is ever invented
+    if (q.answer.reply) c.append(el("p", "qreply", `Reply, ${q.answer.repliedAt}: ${q.answer.reply}`));
+    else if (q.answer.readAt) c.append(el("p", "src", `Read at ${q.answer.readAt}, no reply yet`));
+    else c.append(el("p", "src", "Not read yet"));
+    c.append(el("p", "src", `INBOX.md ${q.answer.message} · ${q.answer.at} · ${q.answer.status}`));
     return c;
   }
   if (q.picturesOnly) return c;
@@ -132,17 +136,79 @@ function card(q, redraw) {
   note.maxLength = 2000;
   const status = el("p", "qnote");
   const buttons = el("div", "qopts");
+  // a pick either goes now, or (with "Collect a batch" on) waits in the batch until "Send batch"
+  const pick = async (option, label) => {
+    if (BATCH.on) {
+      BATCH.items.set(q.id, { question: q.id, option, note: note.value, label });
+      status.className = "qnote";
+      status.textContent = `In the batch: ${label}`;
+      BATCH.changed();
+      return;
+    }
+    if (await send(q, option, note, status)) redraw();
+  };
+  const rec = q.options.find((o) => o.recommended);
+  if (rec) {
+    const approve = el("button", "btn qopt qapprove", "Approve");
+    approve.title = `Takes the recommended choice: ${rec.n}. ${rec.text}`;
+    approve.addEventListener("click", () => pick("recommended", `${rec.n}. ${rec.text} (recommended)`));
+    buttons.append(approve);
+  }
   for (const o of opts) {
     const b = el("button", o.recommended ? "btn qopt" : "qopt plain", `${o.n}. ${o.text}`);
     if (o.recommended) b.append(el("span", "qrec", "recommended"));
-    b.addEventListener("click", async () => { if (await send(q, o.n, note, status)) redraw(); });
+    b.addEventListener("click", () => pick(o.n, `${o.n}. ${o.text}`));
     buttons.append(b);
   }
   const ask = el("button", "qopt plain qask-first", "Ask me first");
-  ask.addEventListener("click", async () => { if (await send(q, "ask", note, status)) redraw(); });
+  ask.addEventListener("click", () => pick("ask", "Ask me first"));
   buttons.append(ask);
+  if (BATCH.items.has(q.id)) { status.textContent = `In the batch: ${BATCH.items.get(q.id).label}`; }
   c.append(buttons, note, status);
   return c;
+}
+
+// The batch lives in this page only (a reload empties it, and the bar says so); nothing is written until "Send batch", which sends
+// ONE message holding every saved answer. The server checks each answer and refuses the whole batch if any one would be refused.
+const BATCH = { on: false, items: new Map(), changed: () => {} };
+
+function batchBar(redraw) {
+  const bar = el("div", "qbatch");
+  const toggle = el("button", "qopt plain", "");
+  const go = el("button", "btn", "");
+  const clear = el("button", "qopt plain", "Empty the batch");
+  const say = el("p", "qnote");
+  const paint = () => {
+    toggle.textContent = BATCH.on ? "Collect a batch: on" : "Collect a batch: off";
+    toggle.classList.toggle("on", BATCH.on);
+    go.textContent = `Send batch (${BATCH.items.size})`;
+    go.disabled = !BATCH.items.size;
+    clear.disabled = !BATCH.items.size;
+  };
+  BATCH.changed = paint;
+  toggle.addEventListener("click", () => { BATCH.on = !BATCH.on; paint(); });
+  clear.addEventListener("click", () => { BATCH.items.clear(); paint(); redraw(); });
+  go.addEventListener("click", async () => {
+    say.className = "qnote";
+    say.textContent = "Sending...";
+    try {
+      const r = await fetch("/api/answer-batch", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-Bench-Key": KEY },
+        body: JSON.stringify({ answers: [...BATCH.items.values()].map(({ question, option, note }) => ({ question, option, note })) }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.refused || `HTTP ${r.status}`);
+      BATCH.items.clear();
+      paint();
+      redraw();
+    } catch (e) {
+      say.className = "qnote bad";
+      say.textContent = `Not sent: ${e.message}`;
+    }
+  });
+  paint();
+  bar.append(toggle, go, clear, el("small", null, "a batch is held by this page only; a reload empties it"), say);
+  return bar;
 }
 
 export async function mount(view) {
@@ -161,7 +227,8 @@ export async function mount(view) {
       (d.refused ? `, ${d.refused} that cannot be answered yet` : "") + " · a click writes one message to INBOX.md");
     const order = (q) => (q.refused ? 1 : q.answer ? 2 : 0);
     const cards = [...d.questions].sort((a, b) => order(a) - order(b)).map((q) => card(q, draw));
-    view.replaceChildren(head, ...(cards.length ? cards : [absent("QUESTIONS.md holds no questions.")]));
+    view.replaceChildren(head, bar, ...(cards.length ? cards : [absent("QUESTIONS.md holds no questions.")]));
   };
+  const bar = batchBar(() => draw());
   await draw();
 }

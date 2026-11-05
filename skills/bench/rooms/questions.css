@@ -24,3 +24,10 @@
 .qv { padding: 5px 10px; font-size: 12px }
 .qv.on { border-color: var(--v1); background: rgba(139,92,246,.22) }
 .qdone { font: 600 14px var(--sans); color: var(--chipok, #34d399); margin: 4px 0 0 }
+.qreply { font-size: 13.5px; line-height: 1.5; margin: 8px 0 0; padding: 8px 12px; border-left: 3px solid var(--v1);
+  background: var(--panel2); border-radius: 0 10px 10px 0 }
+.qbatch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; max-width: 760px }
+.qbatch small { color: var(--faint); font-size: 12px }
+.qbatch .qnote { flex-basis: 100% }
+.qopt.plain.on { border-color: var(--v1); background: rgba(139,92,246,.22) }
+.qbatch button:disabled { opacity: .5; cursor: default }

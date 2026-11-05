@@ -27,6 +27,10 @@ EXPECTED_RED = {
     "refused-as-pass": "a REFUSED run is its own mark, never a pass or a fail",
     "missing-as-pass": "a check with no line at the newest commit reads 'not run', never passing",
     "pill-missing-as-pass": "the header pill counts a check with no line at the newest commit as 'not run', never passed",
+    "reply-blind": "an agent's 'answered HH:MM: line' reads as its reply on the card, and 'read HH:MM' as read with no reply",
+    "batch-first-only": "a batch of answers is one message, and every answer in it reads as answered",
+    "batch-unchecked": "a batch with an unknown question, a question twice, or nothing in it is refused, and nothing is written",
+    "approve-first-option": "Approve sends the option marked recommended, not the first one",
 }
 
 

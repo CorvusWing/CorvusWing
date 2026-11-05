@@ -155,6 +155,16 @@ The bench never edits QUESTIONS.md. A question reads answered once INBOX.md hold
 `Answer to Q-nnn:`, from a click or written by hand; the newest one wins. The agent acts on it like any
 other message. A question titled `Example: ...` is the template's illustration and is hidden.
 
+**Approve** sends the option marked `(recommended)`, whichever number it has. **Collect a batch** turns
+clicks into saved picks instead of sends; **Send batch (N)** then writes ONE message with an
+`Answer to Q-nnn:` line per card, each with its note. The bench checks every answer first, and a batch
+with an unknown question, a question twice, or nothing in it is refused whole, with nothing written. The
+batch lives in the page only, so a reload empties it.
+
+**The reply comes back on the card.** When the agent marks the answer's message
+`answered HH:MM: <one line>`, that line shows on the card as the reply; `read HH:MM` shows as read with
+no reply yet. The bench never invents a reply.
+
 **Pictures**: a question may list screenshots under `Pictures:`, saved in `.bench/pictures/Q-nnn/`
 (PNG, JPEG or WebP; the bench serves only those names, from only that folder). Each gets Yes, No and
 Say more; one Send writes one message with a line for every picture, an unmarked one as "no verdict":

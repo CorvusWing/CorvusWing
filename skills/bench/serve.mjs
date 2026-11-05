@@ -66,7 +66,8 @@ const SELF_TEST = process.argv.includes("--self-test");
 const SELF_TEST_CHILD = process.argv.includes("--self-test-child"); // a bench the self-test started; only it may run broken
 const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-escape", "second-write",
   "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped",
-  "refused-as-fail", "refused-as-pass", "missing-as-pass", "pill-missing-as-pass"];
+  "refused-as-fail", "refused-as-pass", "missing-as-pass", "pill-missing-as-pass", "reply-blind", "batch-first-only",
+  "batch-unchecked", "approve-first-option"];
 // A fault, unlike a break, plants a failure the self-test must REFUSE on (exit 78, "could not look"), never print as rows.
 const FAULTS = ["git-denied", "git-index-held", "get-dropped"];
 const BREAK = arg("--break", "");
@@ -380,7 +381,18 @@ function readInbox() {
 // "Pictures for Q-nnn:") -- the click's own message, or one written by hand; the newest answer wins.
 const QUESTIONS = "QUESTIONS.md";
 const QUESTION_HEAD = /^##\s+(Q-\d+)\s*(?:·\s*(.*))?$/;
-const ANSWER_LINE = /^(Answer|Pictures) (?:to|for) (Q-\d+):\s*(.*)$/m;
+const ANSWER_LINE = /^(Answer|Pictures) (?:to|for) (Q-\d+):\s*(.*)$/gm;
+// The agent's side of a message (bench SKILL.md, "Messages"): "answered HH:MM: <one line>" is its REPLY, shown on the card;
+// "read HH:MM" means read with no reply yet. Anything else is shown as the raw status.
+const REPLY_STATUS = /^answered\s+(\d{1,2}:\d{2})\s*:\s*(.+)$/i;
+const READ_STATUS = /^read\s+(\d{1,2}:\d{2})\s*$/i;
+function replyOf(status) {
+  if (BREAK === "reply-blind") return {};
+  const r = REPLY_STATUS.exec(status);
+  if (r) return { reply: r[2].trim(), repliedAt: r[1] };
+  const d = READ_STATUS.exec(status);
+  return d ? { readAt: d[1] } : {};
+}
 const PICTURES = path.join(".bench", "pictures");
 const PICTURE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpe?g|webp)$/i;
 const VERDICTS = { yes: "yes", no: "no", more: "say more" };
@@ -437,10 +449,12 @@ function readQuestions() {
   if (BREAK === "answered-from-click") for (const [id, a] of clicked) answers.set(id, a);
   else {
     for (const m of inboxMessages()) {
-      const a = ANSWER_LINE.exec(m.body);
-      if (!a) continue;
-      const verdicts = a[1] === "Pictures" ? [...m.body.matchAll(/^- (\S+): (.*)$/gm)].map((v) => ({ file: v[1], verdict: v[2].trim() })) : null;
-      answers.set(`${a[1]}:${a[2]}`, { choice: a[3].trim(), verdicts, message: m.id, at: m.at, status: m.status });
+      // a batch is ONE message with one answer line per question: every line is read, never only the first
+      const lines = [...m.body.matchAll(ANSWER_LINE)];
+      for (const a of BREAK === "batch-first-only" ? lines.slice(0, 1) : lines) {
+        const verdicts = a[1] === "Pictures" ? [...m.body.matchAll(/^- (\S+): (.*)$/gm)].map((v) => ({ file: v[1], verdict: v[2].trim() })) : null;
+        answers.set(`${a[1]}:${a[2]}`, { choice: a[3].trim(), verdicts, message: m.id, at: m.at, status: m.status, ...replyOf(m.status) });
+      }
     }
   }
   // a question titled "Example: ..." is the template's illustration, hidden like the tables' "Example:" rows, and counted
@@ -472,11 +486,32 @@ function answerText(body) {
   let choice;
   if (body.option === "ask") choice = "ask me first -- talk it through with me before deciding";
   else {
-    const o = q.options.find((x) => x.n === Number(body.option));
+    // "Approve" sends the option the question marks (recommended); a readable question always has exactly one
+    const o = body.option === "recommended" ? (BREAK === "approve-first-option" ? q.options[0] : q.options.find((x) => x.recommended))
+      : q.options.find((x) => x.n === Number(body.option));
     if (!o && BREAK !== "answer-any-option") return { refused: `${q.id} has no option ${String(body.option).slice(0, 10)}.` };
     choice = o ? `${o.n}. ${o.text}${o.recommended ? " (the recommended one)" : ""}` : `${body.option}.`;
   }
   return { id: q.id, choice, text: `Answer to ${q.id}: ${choice}` + (note ? `\n\nNote: ${note}` : "") };
+}
+
+// A batch: answers saved on several cards, sent as ONE message with one "Answer to Q-nnn:" line each (its note under it). Every
+// answer is checked before anything is written: one that would be refused alone refuses the whole batch, naming it.
+function batchText(body) {
+  const list = Array.isArray(body.answers) ? body.answers : [];
+  if (!list.length) return { refused: "An empty batch is not sent." };
+  if (list.length > 50) return { refused: "A batch is at most 50 answers." };
+  const seen = new Set(), parts = [], ids = [];
+  for (const one of list) {
+    const a = answerText(one || {});
+    if (a.refused && BREAK !== "batch-unchecked") return { refused: `The batch was not sent: ${a.refused}` };
+    const id = a.id || String((one || {}).question).slice(0, 20);
+    if (seen.has(id)) return { refused: `The batch answers ${id} twice; keep one.` };
+    seen.add(id);
+    ids.push(id);
+    parts.push(a.text || `Answer to ${id}: ${String((one || {}).option).slice(0, 10)}.`);
+  }
+  return { ids, text: parts.join("\n\n") };
 }
 
 // One Send from the pictures tray: every picture the question lists gets its line -- yes, no, say more, or "no verdict" -- in one
@@ -761,6 +796,15 @@ const server = http.createServer(async (req, res) => {
       if (BREAK === "answered-from-click") clicked.set(`Answer:${a.id}`, { choice: a.choice, message: sent.id, at: sent.at, status: "waiting" });
       return json(res, 200, { ...sent, question: a.id, choice: a.choice });
     }
+    if (req.method === "POST" && url.pathname === "/api/answer-batch") {
+      if (!keyOk(req)) return refuse(res, 403, "This launch's key is missing; reload the page.");
+      let body;
+      try { body = JSON.parse(await readBody(req, 64 * KB)); } catch { return refuse(res, 400, "The batch could not be read."); }
+      const a = batchText(body || {});
+      if (a.refused) return refuse(res, 400, a.refused);
+      touch();
+      return json(res, 200, { ...appendInbox(a.text), questions: a.ids });
+    }
     return refuse(res, 404, "Nothing here.");
   } catch (e) {
     return refuse(res, 500, `The bench hit an error: ${e.message}`);
@@ -821,8 +865,13 @@ const SCRATCH_FILES = {
     "2. As two", "",
     "## Q-005 · Example: the template's illustration", "", "The question: Shown?", "Options:", "1. No (recommended)", "2. Yes", "",
     "## Q-006 · The new screens", "", "The question: Do these screens look right?", "Pictures:", "- home.png -- the home screen",
-    "- menu.png -- the menu, open", "- gone.png -- a picture nobody saved", ""],
-  "INBOX.md": ["# INBOX", "", "## M-001 · 2026-01-01 09:00 · read 09:05", "", "Answer to Q-004: 1. As one (the recommended one)", ""],
+    "- menu.png -- the menu, open", "- gone.png -- a picture nobody saved", "",
+    "## Q-007 · Where the log goes", "", "The question: Where should the counter write its log?", "Options:",
+    "1. To the screen -- nothing kept", "2. To a file (recommended) -- kept for a week", "",
+    "## Q-008 · Numbers", "", "The question: Count numbers as words?", "Options:", "1. No (recommended)", "2. Yes", ""],
+  "INBOX.md": ["# INBOX", "", "## M-001 · 2026-01-01 09:00 · read 09:05", "", "Answer to Q-004: 1. As one (the recommended one)", "",
+    "## M-002 · 2026-01-01 10:00 · answered 10:10: Numbers are skipped now, in the counter's next commit", "",
+    "Answer to Q-008: 1. No (the recommended one)", ""],
 };
 
 // The self-test's waits are generous, because a busy machine is slow, not wrong; anything that still fails to answer is a
@@ -1061,6 +1110,38 @@ async function selfTest() {
       click.code === 200 && (added.match(/^## M-\d+ · /gm) || []).length === 1 &&
       added.includes("Answer to Q-001: 1. Keep them in a file") && nowAnswered && nowAnswered.answer,
       `HTTP ${click.code}; ${(added.match(/^## M-\d+ · /gm) || []).length} message(s) added; Q-001 ${nowAnswered && nowAnswered.answer ? "answered" : "not answered"}`);
+
+    // the agent's reply: "answered HH:MM: <line>" shows as the reply; "read HH:MM" as read, with no reply invented
+    const r8 = q("Q-008").answer || {}, r4 = q("Q-004").answer || {};
+    row("an agent's 'answered HH:MM: line' reads as its reply on the card, and 'read HH:MM' as read with no reply",
+      r8.reply === "Numbers are skipped now, in the counter's next commit" && r8.repliedAt === "10:10" && r4.readAt === "09:05" && !r4.reply,
+      `Q-008 reply: ${r8.reply || "none"}; Q-004 read at ${r4.readAt || "?"}, reply ${r4.reply || "none"}`);
+    // Approve: the option marked (recommended), never the first one
+    await answer({ question: "Q-007", option: "recommended" });
+    const approved = ((await questions()).find((x) => x.id === "Q-007") || {}).answer || {};
+    row("Approve sends the option marked recommended, not the first one", /^2\. To a file/.test(approved.choice || ""),
+      `Q-007 answered: ${approved.choice || "not answered"}`);
+    // a batch: ONE message, every answer line in it read
+    const batch = (answers) => request(port, "POST", "/api/answer-batch", { origin: own, key, body: JSON.stringify({ answers }) });
+    const beforeBatch = fs.readFileSync(path.join(full, INBOX), "utf8");
+    const sentBatch = await batch([{ question: "Q-001", option: 2, note: "for now" }, { question: "Q-007", option: 1 }]);
+    const batchAdded = fs.readFileSync(path.join(full, INBOX), "utf8").slice(beforeBatch.length);
+    const afterBatch = await questions();
+    const c1 = ((afterBatch.find((x) => x.id === "Q-001") || {}).answer || {}).choice || "";
+    const c7 = ((afterBatch.find((x) => x.id === "Q-007") || {}).answer || {}).choice || "";
+    row("a batch of answers is one message, and every answer in it reads as answered",
+      sentBatch.code === 200 && (batchAdded.match(/^## M-\d+ · /gm) || []).length === 1 && /^2\. Keep them in memory/.test(c1) && /^1\. To the screen/.test(c7),
+      `HTTP ${sentBatch.code}; ${(batchAdded.match(/^## M-\d+ · /gm) || []).length} message(s); Q-001 ${c1 || "?"}; Q-007 ${c7 || "?"}`.slice(0, 200));
+    const beforeBad = fs.readFileSync(path.join(full, INBOX), "utf8");
+    const badBatch = [];
+    for (const [answers, what] of [[[], "an empty batch"], [[{ question: "Q-001", option: 1 }, { question: "Q-999", option: 1 }], "a batch naming an unknown question"],
+      [[{ question: "Q-001", option: 1 }, { question: "Q-001", option: 2 }], "a batch answering one question twice"]]) {
+      const r = await batch(answers);
+      if (r.code !== 400) badBatch.push(`${what}: HTTP ${r.code}`);
+    }
+    if (fs.readFileSync(path.join(full, INBOX), "utf8") !== beforeBad) badBatch.push("INBOX.md changed");
+    row("a batch with an unknown question, a question twice, or nothing in it is refused, and nothing is written", !badBatch.length,
+      badBatch.length ? badBatch.join("; ") : "three batches, each refused; INBOX.md unchanged");
 
     const pics = (q("Q-006").pictures || []);
     const shot = await request(port, "GET", "/pictures/Q-006/home.png");
