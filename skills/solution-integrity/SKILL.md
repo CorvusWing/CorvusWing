@@ -10,7 +10,9 @@ question below guards one of those ways. **The order is not the order these occu
 It is sorted by the cost of a mistake: a wrong answer at question 1 wastes a week; at question
 10 it wastes an afternoon. Answer them in this order even when a later one feels more urgent.
 **And answer them out loud, in the response.** An unstated answer is an assumption dressed as a
-decision.
+decision. **When the defect arrives as a number** (a count, a score, a report that something is
+missed, slower or worse), run `trace-back` first: it is the order these questions take for a finding
+you did not make yourself.
 
 ## The one technique under all of it: work backwards
 

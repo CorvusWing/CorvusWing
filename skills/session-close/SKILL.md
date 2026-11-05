@@ -77,6 +77,17 @@ The rules, every time:
 4. **The move and its pointer go in the same commit**, so they can never disagree.
 5. **Only what is finished moves.** Open work, standing rules and traps stay where they are, however
    long the file gets.
+6. **A file that keeps growing usually holds two jobs: split it, never trim it.** Size is the symptom.
+   The defect is one document doing two things: what to do next, which everyone must read, and the
+   record of everything learned, which almost nobody needs. Splitting keeps both; trimming destroys
+   the record.
+7. **"When to open it" names a moment, not a topic.** "Open it before changing the import's retry
+   logic, which was tried twice" routes the next agent. "Old notes", "kept for reference" and
+   "historical context" route nobody, because the only way to learn whether they matter is to read them.
+8. **A big move is done by a script, never by hand**, and the script refuses in words if the bytes do
+   not add up before it writes anything. It checks both directions: every pointer names a file that
+   exists, and every archive file has its pointer. A paragraph lost in a hand-made split is never found
+   again.
 
 ## Step 2c: Check the read path's size
 
