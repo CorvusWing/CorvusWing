@@ -1,6 +1,8 @@
 ---
 name: trace-back
 description: Ariadne's thread for a surprising number. Before a count, score, benchmark or report is accepted, repeated or acted on, follow it back from the symptom in a fixed order -- reproduce it with the instrument that made it, rule out the test and the tool before blaming the product, read a random sample by eye, reconcile with whoever else computes it, ask the system why, deduce where the answer lives, and turn what is not known into the plan. Use whenever a number says something is missed, broken, slower, worse, better or surprising; before planning a fix for a finding you did not reproduce yourself; on "is it the test or the tool", "triage this", "why does it miss X", "is this real", "trace it back"; and before writing "might be noise" or any cause you have not read. It puts solution-integrity, working-discipline and holding-the-goal in an order; it replaces none of them.
+metadata:
+  author: Ron Brazil
 ---
 
 # Trace back: follow the thread from the symptom
@@ -33,8 +35,8 @@ Name every way the count could come from how it was measured, and split the coun
 
 - **matching**: does the truth land on the right thing -- the right line, the right row, the right run?
 - **the labels**: who made them, and how? Labels made by a program are claims too.
-- **definitions**: does the yardstick's category mean what the system's does ("a title" against "a heading",
-  "a failure" against "a retry")?
+- **definitions**: does the yardstick's category mean what the system's does ("a canceled order" against "a
+  refunded one", "a failure" against "a retry")?
 - **selection**: was the sample picked by the system's own uncertainty? Then weakness there is partly true
   by construction. Size it against the whole before calling it a weakness.
 - **quirks**: empty items, duplicates, things neither side should count.
@@ -59,13 +61,13 @@ else computes this").
 Most systems can explain a decision: an `explain` command, a debug log, a trace, the largest contributions
 to a score. **Read it on the failures, a few of each kind.** The mechanism usually names itself.
 
-Then read how the named fact is computed, all the way to its `return`. "The width pulls it down" is a
-symptom. "The width is measured against the page, and on a two-column page that is one column" is a
-mechanism.
+Then read how the named fact is computed, all the way to its `return`. "The timeout is too short" is a
+symptom. "The timeout is counted from when the request was queued, and on a busy night the queue alone
+uses most of it" is a mechanism.
 
 ### 5. Deduce from the symptom
 
-The shape of the move: "It shows X. We miss X here. A simple reader that sees only Y gets it right. So Y
+The shape of the move: "It shows X. We miss X here. A simple approach that sees only Y gets it right. So Y
 carries the answer, and the fix has to see Y, measured correctly."
 
 - **A simple control that works is a map.** Whatever a stripped-down approach still gets right tells you
@@ -136,4 +138,4 @@ the size of the evidence**.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.
