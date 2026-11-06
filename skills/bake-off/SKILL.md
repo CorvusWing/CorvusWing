@@ -1,6 +1,8 @@
 ---
 name: bake-off
 description: Builds a piece whose answer does not exist yet (a parser, a scoring rule, a cache policy, a new file format) in a fixed order that stops the tests from being bent to fit. Use when the goal is clear but the mechanism is not, when an agent is told to "make the tests pass" for something nobody has designed, when several candidate approaches must be compared fairly, or when a change would otherwise rewrite the tests along with the code. Ships one script, scripts/bake_off.py, that checks a bake-off record against git and prints a scoreboard.
+metadata:
+  author: Ron Brazil
 ---
 
 # Bake-off: build what nobody has invented yet, in a fixed order
@@ -132,4 +134,4 @@ what a reviewer reads to see that the comparison was fair.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

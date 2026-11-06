@@ -187,7 +187,7 @@ footer b { color: var(--muted); font-weight: 600 }
   <footer>
     <span id="foot">Missing shows as missing. Nothing on this page is typed in by hand.</span>
     <span class="sig"><img src="/assets/prophet-mark-64.png" width="28" height="28" alt="">
-      <span><b>CorvusWing</b>, by <b class="pw"><span class="cap">P</span>ROPHE<span class="cap">T</span></b></span></span>
+      <span><b>CorvusWing</b>, created by Ron Brazil, signed <b class="pw"><span class="cap">P</span>ROPHE<span class="cap">T</span></b></span></span>
   </footer>
 </div>
 
@@ -491,7 +491,8 @@ function mdInline(text) {
 function splitRow(line) { return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim()); }
 function md(text) {
   const out = document.createDocumentFragment();
-  const lines = text.split("\n");
+  // an HTML comment is hidden, as GitHub hides it (the README's count markers are comments around a generated number)
+  const lines = text.replace(/<!--[\s\S]*?-->/g, "").split("\n");
   let i = 0;
   const isTableSep = (l) => /^\s*\|?\s*:?-{3,}/.test(l || "");
   while (i < lines.length) {

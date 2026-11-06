@@ -1,6 +1,8 @@
 ---
 name: compaction
 description: Carry a long session across a context compaction (the automatic summary that frees up room, after which the agent works from the summary) without losing what cannot be worked out again. Commits first, compacts only at a seam, sorts what to carry by what it costs if the next session gets it wrong, keeps orders already carried out apart from rules still in force, ends with a flat manifest whose every line has a command that checks it, and makes the session on the other side test the note before trusting it. Writes PICKUP.md. Use when someone says "compact", "we're running out of context", "carry this across" or "write the pickup", when the context-guard skill's line is crossed, and at the end of every session (session-close runs it).
+metadata:
+  author: Ron Brazil
 ---
 
 # Compaction: carry a session across the summary
@@ -164,4 +166,4 @@ before trusting it.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

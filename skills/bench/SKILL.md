@@ -1,6 +1,8 @@
 ---
 name: bench
 description: Starts the project's bench (and can put an icon on the desktop that starts it with one click), a local page that shows what is true now, what is next, the tasks open / upcoming / closed, the checks and their last results, the newest decisions, and a Message Claude box, every readout read from the project's own files (STATE.md, HANDOFF.md, PLAN.md, DECISIONS.md, the gates ledger, INBOX.md) with anything missing shown as missing; its About tab shows the kit's README and license. Also says how the messages written there reach the agent, and how to fit a project's notes to the bench when a panel shows empty though the project holds that information (--check, then reshape with the developer's yes, never inventing). Use when someone says "open the bench", "start the dashboard", "show me the project", "start the bench", "the bench is empty", "a panel is missing", or after start-here when the developer wants one page to watch the project on.
+metadata:
+  author: Ron Brazil
 ---
 
 # The bench
@@ -213,4 +215,4 @@ cannot be judged. A question with pictures and no options is answered by this me
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

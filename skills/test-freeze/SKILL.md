@@ -1,6 +1,8 @@
 ---
 name: test-freeze
 description: Refuses a commit that changes or deletes an existing test, unless the commit message says why on a line of its own. Use when an agent is about to change a failing test to make it pass, when a commit edits, skips or deletes a test file, when a check that used to fail has gone quiet, or when someone asks "did this weaken the tests". Ships one script, scripts/test_freeze.py, that reads a range of commits and proves its own refusals with a self-test.
+metadata:
+  author: Ron Brazil
 ---
 
 # Test freeze: a changed test must say why
@@ -106,4 +108,4 @@ whole history, because older commits were written before the rule existed.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

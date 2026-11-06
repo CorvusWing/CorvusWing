@@ -33,7 +33,7 @@ Seven steps, one for each letter. Each is done by a skill in this kit.
 | **O**rder | Every task gets a written order first: its files, a size budget, a done-criterion, a cancel condition, and its own git branch; the second failure in a row of the same check stops it. | `scope-guard`, `two-strikes` |
 | **P**rove | "It works" means a check anyone can rerun, and every check is proven able to fail; a test is never weakened without a written reason, and a piece nobody has designed is compared on rules frozen before any candidate; a surprising number is traced back to its cause before anyone acts on it. | `gates`, `solution-integrity`, `test-freeze`, `bake-off`, `trace-back` |
 | **H**and off | A session ends, or is summarized to free up room, without losing what cannot be worked out again; the next one tests the note before trusting it. | `compaction`, `context-guard` |
-| **E**volve | A mistake becomes a rule the same day, with its reason; a "cannot" is checked before it closes a door. | `holding-the-goal`, `working-discipline` |
+| **E**volve | A mistake becomes a rule the same day, with its reason, and a mistake that keeps coming back becomes a lock that refuses it; a "cannot" is checked before it closes a door. | `holding-the-goal`, `working-discipline`, `shell-guards` |
 | **T**rust | Trust is earned by checking: every number on the bench comes from a file, and anything missing shows as missing. | `bench` |
 
 None of this makes the model deterministic. It makes the process deterministic, and the process is
@@ -153,7 +153,7 @@ A skill is a folder with a SKILL.md file in it. Claude Code looks for skills in 
 6. Start a new Claude Code session so it picks up the skills. In recent versions, typing `/` lists
    them (for example `/start-here`).
 
-The six scripts (`two-strikes`, `test-freeze`, `decide-first`, `bake-off`, and the two in `shell-guards`) need Python 3.8 or newer;
+The <!-- count:scripts -->six<!-- /count --> scripts (`two-strikes`, `test-freeze`, `decide-first`, `bake-off`, and the two in `shell-guards`) need Python 3.8 or newer;
 `test-freeze` and `bake-off` also need git. They use no packages. Python is `python3` on macOS and Linux, and `python` on Windows.
 Once installed for every project, each script is at `~/.claude/skills/<skill>/scripts/`. Commit what they
 write into a project with the rest of its notes: `strikes.jsonl` (two-strikes), `decisions/` (decide-first)

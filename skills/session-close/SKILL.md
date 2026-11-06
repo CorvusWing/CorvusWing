@@ -1,6 +1,8 @@
 ---
 name: session-close
 description: Close a working session so the next one loses nothing. Commits first, updates STATE.md, PLAN.md, HANDOFF.md, DECISIONS.md, FILEMAP.md and REPORT.md, moves finished work into archive/ with a pointer line, keeps the files read at every session start under a 400 KB budget, and ends by running the compaction skill, which writes PICKUP.md (the paste that resumes the work) with its two instruction sections and a checkable manifest. Use at the end of any real session, and when someone says "wrap up", "close the session", "we're done for now" or "update the notes". Also use unprompted when a session has produced findings or unfinished work that a fresh session would otherwise have to rediscover.
+metadata:
+  author: Ron Brazil
 ---
 
 # Session close
@@ -151,4 +153,4 @@ prints PICKUP.md.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

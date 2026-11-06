@@ -1,6 +1,8 @@
 ---
 name: solution-integrity
 description: Twelve questions to answer before, during and after any non-trivial change to a codebase that has grown big enough to hide its own defects. Use before writing a fix, adding a setting, tuning a value, restructuring code or acting on a measurement, and again before calling the work done. Also use when someone asks "should I build X", "is this the fix", "why does this keep coming back" or "let's add a setting for it", when a bug comes back in a new place, when a benchmark and the live app disagree, or when a result seems too good.
+metadata:
+  author: Ron Brazil
 ---
 
 # Solution integrity: the questions that stop a fix from being a mask
@@ -254,4 +256,4 @@ else can see, and stop a false result from being recorded.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

@@ -1,6 +1,8 @@
 ---
 name: gates
 description: Builds a project's check suite ("gates"): one command that runs every check, a ledger that remembers each run against the files it checked, a deliberate break per gate that proves it can fail, and a progress window that opens beside a long run and shows how far along it is and when it should finish. Interviews the developer first, one or two questions at a time. Use after start-here, when a project has no single "run every check" command, when an agent's "it works" cannot be re-checked by anyone, or when someone says "set up gates", "build a test suite", "build a progress window" or "build a run daemon". Builds one part per session.
+metadata:
+  author: Ron Brazil
 ---
 
 # Gates
@@ -162,4 +164,4 @@ window closes on its own.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

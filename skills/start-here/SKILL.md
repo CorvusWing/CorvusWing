@@ -1,6 +1,8 @@
 ---
 name: start-here
 description: First-run setup for a project worked on by AI coding agents. First keeps the original work safe (a sealed, fingerprint-checked snapshot and a clean working copy; the original folder is never touched again). Then interviews the developer one or two questions at a time, then writes the project's loop documents (STATE, HANDOFF, DECISIONS, PICKUP, FILEMAP, ORDER, REPORT, LESSONS) and an archive folder for finished work, house rules in AGENTS.md (with a CLAUDE.md that imports them), a git safety net, writes a PLAN from done backwards to today with the riskiest assumptions tested first, and ends by naming one small next task with a done-criterion and a cancel condition. Use the first time this kit is used in a project, or when someone says "start here", "set up the loop", "set up my project for agents" or "my agents keep drifting". Never builds anything in the same session.
+metadata:
+  author: Ron Brazil
 ---
 
 # Start here
@@ -360,4 +362,4 @@ Close with a plain summary in bullets:
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

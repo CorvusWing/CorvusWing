@@ -1,6 +1,8 @@
 ---
 name: two-strikes
 description: Stops a step after the same check fails twice in a row, so an agent reports the failure to a person instead of trying a third variation. Use when a test, build, command or check has failed twice, when an agent is about to "just try one more thing" on the same failure, when a run is looping, or when someone asks how to stop an agent from spinning. Ships one script, scripts/two_strikes.py, with an append-only ledger, a run wrapper and a self-test.
+metadata:
+  author: Ron Brazil
 ---
 
 # Two strikes: a check that fails twice in a row stops and reports
@@ -101,4 +103,4 @@ Then wait for the person. Their reset, or their fix, is what starts a fresh coun
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

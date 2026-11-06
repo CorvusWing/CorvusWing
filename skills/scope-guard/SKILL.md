@@ -1,6 +1,8 @@
 ---
 name: scope-guard
 description: The rules that keep an AI coding agent from rewriting code nobody asked it to touch, and the git commands that make any agent run reversible. Use before handing any task to an agent, before any unattended or long run, before merging an agent's work, when a diff is much bigger than expected, and when work needs to be undone. Also use whenever an agent proposes to "refactor", "clean up", "modernize", "simplify" or "rewrite" something it was not ordered to.
+metadata:
+  author: Ron Brazil
 ---
 
 # Scope guard
@@ -200,4 +202,4 @@ out-of-scope files · read, test, report, merge.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

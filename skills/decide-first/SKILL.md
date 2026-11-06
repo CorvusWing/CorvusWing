@@ -1,6 +1,8 @@
 ---
 name: decide-first
 description: Makes a design question get a small, measured decision before any code is written. Use when a choice between designs, libraries, data shapes or approaches is open, when someone asks "should we build X", "is the slow part Y", or "which is better", when a plan's premise needs its probe run, or when an agent is about to start coding a design it has not measured. Ships one script, scripts/decide_first.py, that records the question, the cancel line, the measurement and the decision in that order, and refuses a record that breaks the order.
+metadata:
+  author: Ron Brazil
 ---
 
 # Decide first: measure the design question before the code
@@ -111,4 +113,4 @@ reviewer reads the probe's output there.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

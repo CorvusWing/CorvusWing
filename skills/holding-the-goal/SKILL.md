@@ -1,6 +1,8 @@
 ---
 name: holding-the-goal
 description: The questions to run before saying something is blocked, impossible, not worth it, or needs the owner's decision, and before giving up on a goal because one measurement refused one claim about it. Use whenever you are about to write "cannot", "blocked", "needs your decision", "not achievable" or "we should stop here", or to report a limitation. Also use when a measured difference is too small for anyone to notice but is being treated as a blocker, when your caution contradicts someone's unmeasured gut feeling, when you have found a limitation and only thought about removing it, when someone pushes back on a "no" ("is that even necessary", "why can't we", "that seems irrelevant"), and, in the other direction, before proposing to fix a defect nobody has seen cause harm.
+metadata:
+  author: Ron Brazil
 ---
 
 # Holding the goal: before you say a thing cannot be done
@@ -213,4 +215,4 @@ sounds careful.**
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

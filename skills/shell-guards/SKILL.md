@@ -1,6 +1,8 @@
 ---
 name: shell-guards
 description: Two small Claude Code hooks that refuse shell commands which fail without saying so -- a heredoc whose body holds a backslash (or a Python started with nothing to read), and a logged exit code that belongs to the wrong command ($? read after $(date)). Use when setting up a project's safety fences, when a scripted edit wrote a file different from the one intended, when a log says "exit 0" for a run that failed, when an agent's shell hangs on a Python prompt, or when someone asks how to make a rule an agent cannot forget. Ships two scripts with self-tests and a settings example to paste.
+metadata:
+  author: Ron Brazil
 ---
 
 # Shell guards: two mistakes a hook can refuse
@@ -86,4 +88,4 @@ row may turn RED: that is how you know the test can fail.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

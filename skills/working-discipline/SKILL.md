@@ -1,6 +1,8 @@
 ---
 name: working-discipline
 description: How to work inside a codebase that has history, covering the first ten minutes in any project, how to read code and measure without fooling yourself, how to spend tool calls, how to build, and how to report. Use at the start of every session in an existing project, before the first tool call in an unfamiliar codebase, before writing any probe, benchmark or measurement, before proposing an idea in a project that keeps a decision log, and before writing a handoff. Pairs with solution-integrity, which owns the questions before and after a specific change; this skill owns everything around the change. Use on "pick up where we left off", "continue the project", "measure this", "benchmark", "let's try", "why is this slow", or any session that begins by reading a state file.
+metadata:
+  author: Ron Brazil
 ---
 
 # Working discipline: the habits around the change
@@ -172,4 +174,4 @@ refusal is a result · old behind a switch.
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.

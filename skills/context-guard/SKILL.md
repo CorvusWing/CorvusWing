@@ -1,6 +1,8 @@
 ---
 name: context-guard
 description: Keeps an automatic compaction from ever taking unwritten work. The session reads its own context use (how full its conversation window is) at every commit and before every long run; at about 85% of the window it starts nothing new, commits, and runs the compaction skill and the session-close documents, so the note and the project's notes are current before any summary can happen. Use at every commit, before every report, before any run expected to take more than about ten minutes, at least once an hour in a long session the developer is not watching, and when someone says "how much context is left" or "guard the context".
+metadata:
+  author: Ron Brazil
 ---
 
 # Context guard: the summary never takes unwritten work
@@ -73,4 +75,4 @@ with the paste in one block · no reading means every commit is treated as past 
 
 ---
 
-Part of CorvusWing. Created by Ron Brazil. MIT License.
+Part of CorvusWing, created by Ron Brazil. MIT License.
