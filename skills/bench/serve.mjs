@@ -15,7 +15,8 @@
 //                   row is as expected (1 when one is not, 78 when it cannot look); --break NAME switches one guard off to prove
 //                   its row turns red
 //
-// What it reads, and only this: STATE.md, HANDOFF.md, PLAN.md, DECISIONS.md, INBOX.md, QUESTIONS.md and its pictures in
+// What it reads, and only this: STATE.md, HANDOFF.md, PLAN.md, DECISIONS.md, INBOX.md, WORKLOG.md (and, for its proofs, whether
+// a named commit or file exists), QUESTIONS.md and its pictures in
 // .bench/pictures/<Q-id>/ (PNG, JPEG and WebP names only), the read-path files' sizes, the checks
 // ledger (.gates.jsonl unless --ledger names another), and `git` for the branch, the last commit and the uncommitted count;
 // and from the kit itself, the rooms folder's .js and .css files.
@@ -68,7 +69,7 @@ const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-e
   "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped",
   "refused-as-fail", "refused-as-pass", "missing-as-pass", "pill-missing-as-pass", "reply-blind", "batch-first-only",
   "batch-unchecked", "approve-first-option", "keys-off-by-one", "keys-while-typing", "counts-from-old-list",
-  "search-id-only"];
+  "search-id-only", "missing-day-as-zero", "proof-unchecked"];
 // A fault, unlike a break, plants a failure the self-test must REFUSE on (exit 78, "could not look"), never print as rows.
 const FAULTS = ["git-denied", "git-index-held", "get-dropped"];
 const BREAK = arg("--break", "");
@@ -570,6 +571,106 @@ function appendInbox(text) {
   return { id, at };
 }
 
+// ---------------------------------------------------------------- the work log: what got done each day, with its proof
+// WORKLOG.md holds one "## YYYY-MM-DD" section per day with a table of what got done and its proof: "commit <hash>", "file
+// <path>" or "check <name>". The week and month rollups are COUNTED from the day sections, never typed: entries, days with work,
+// and how many proofs hold (a commit that exists in this repository, a file that exists in the project). A day with no section
+// is no entry, never a zero. The bench never edits WORKLOG.md.
+const WORKLOG = "WORKLOG.md";
+const DAY_HEAD = /^##\s+(\d{4}-\d{2}-\d{2})\s*$/;
+const PROOF = /^(commit|file|check)\s+(.+)$/i;
+const isoDay = (d) => d.toISOString().slice(0, 10);
+const dayOf = (s) => { const d = new Date(`${s}T00:00:00Z`); return Number.isNaN(d.getTime()) || isoDay(d) !== s ? null : d; };
+
+function parseWorklog(text) {
+  const days = new Map();
+  const problems = [];
+  let cur = null;
+  text.split("\n").forEach((line, i) => {
+    if (/^##\s/.test(line)) {
+      const m = DAY_HEAD.exec(line);
+      cur = null;
+      if (!m || !dayOf(m[1])) { problems.push(`line ${i + 1}: "${line.trim().slice(0, 40)}" is not a day heading (## YYYY-MM-DD)`); return; }
+      if (days.has(m[1])) problems.push(`line ${i + 1}: ${m[1]} has a second section; its rows are added to the first`);
+      cur = days.get(m[1]) || { date: m[1], entries: [] };
+      days.set(m[1], cur);
+      return;
+    }
+    if (!cur || !/^\s*\|/.test(line)) return;
+    const row = cells(line);
+    if (row.length < 2 || /^:?-+:?$/.test(row[0]) || /^what\b/i.test(row[0])) return;
+    const proof = row[1].replace(/`/g, "").trim();
+    const p = PROOF.exec(proof);
+    cur.entries.push({ what: row[0], proof: p ? { kind: p[1].toLowerCase(), ref: p[2].trim() } : { kind: "none", ref: proof } });
+  });
+  return { days: [...days.values()].sort((a, b) => (a.date < b.date ? 1 : -1)), problems };
+}
+
+// A proof holds when what it names exists: a commit in this repository, a file inside the project. A check is named, not proved
+// here (its result is the ledger's), and is counted apart.
+async function proveEntry(e) {
+  const { kind, ref } = e.proof;
+  if (kind === "commit") {
+    if (!/^[0-9a-f]{4,40}$/i.test(ref)) return { ...e, holds: false, why: "not a commit hash" };
+    const ok = BREAK === "proof-unchecked" ? true : (await git(["cat-file", "-e", `${ref}^{commit}`])) !== null;
+    return { ...e, holds: ok, why: ok ? "commit exists" : "no such commit in this repository" };
+  }
+  if (kind === "file") {
+    const p = path.resolve(PROJECT, ref);
+    const inside = p === PROJECT || p.startsWith(PROJECT + path.sep);
+    const ok = inside && fs.existsSync(p);
+    return { ...e, holds: ok, why: !inside ? "outside the project" : ok ? "file exists" : "no such file" };
+  }
+  return { ...e, holds: null, why: kind === "check" ? "a check, named (its result is in the checks ledger)" : "no proof given" };
+}
+
+// Monday of the week a day falls in, as YYYY-MM-DD.
+const weekOf = (s) => { const d = dayOf(s); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return isoDay(d); };
+
+function rollup(days) {
+  const entries = days.reduce((n, d) => n + d.entries.length, 0);
+  const proofs = days.flatMap((d) => d.entries);
+  return {
+    entries, daysWithWork: days.filter((d) => d.entries.length).length,
+    proven: proofs.filter((e) => e.holds === true).length, failing: proofs.filter((e) => e.holds === false).length,
+    named: proofs.filter((e) => e.holds === null).length,
+  };
+}
+
+async function readWorklog() {
+  const doc = readDoc(WORKLOG);
+  if (!doc) return { absent: "No WORKLOG.md yet. The agent adds a ## YYYY-MM-DD section at each day's close (templates/WORKLOG.md)." };
+  const { days: parsed, problems } = parseWorklog(doc.text);
+  const days = [];
+  for (const d of parsed) days.push({ date: d.date, entries: await Promise.all(d.entries.map(proveEntry)) });
+  const byDate = new Map(days.map((d) => [d.date, d]));
+  const weeks = new Map();
+  for (const d of days) {
+    const w = weekOf(d.date);
+    if (!weeks.has(w)) weeks.set(w, []);
+    weeks.get(w).push(d);
+  }
+  const weekRows = [...weeks.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([start, list]) => {
+    const each = [];
+    for (let i = 0; i < 7; i++) {
+      const day = dayOf(start);
+      day.setUTCDate(day.getUTCDate() + i);
+      const has = byDate.get(isoDay(day));
+      // a day with no section is no entry (null), never a zero
+      each.push({ date: isoDay(day), entries: has ? has.entries.length : (BREAK === "missing-day-as-zero" ? 0 : null) });
+    }
+    return { start, days: each, ...rollup(list) };
+  });
+  const months = new Map();
+  for (const d of days) {
+    const m = d.date.slice(0, 7);
+    if (!months.has(m)) months.set(m, []);
+    months.get(m).push(d);
+  }
+  const monthRows = [...months.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([month, list]) => ({ month, ...rollup(list) }));
+  return { days, weeks: weekRows, months: monthRows, problems };
+}
+
 let gitSlow = false; // the last git call was stopped by its timeout: slow is not the same as absent
 function git(args) {
   return new Promise((resolve) => {
@@ -769,6 +870,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, appendInbox(text));
     }
     if (req.method === "GET" && url.pathname === "/api/questions") { touch(); return json(res, 200, readQuestions()); }
+    if (req.method === "GET" && url.pathname === "/api/worklog") { touch(); return json(res, 200, await readWorklog()); }
     if (req.method === "GET" && url.pathname === "/api/history") { touch(); return json(res, 200, readHistory()); }
     if (req.method === "GET" && url.pathname.startsWith("/pictures/")) {
       const [qid, ...rest] = url.pathname.slice("/pictures/".length).split("/");
@@ -1048,6 +1150,16 @@ async function selfTest() {
         return 78;
       }
     }
+    // the work log names the scratch project's real commit, a commit that does not exist, a file, a check and a bad heading
+    const head = await new Promise((r) => execFile("git", ["-C", full, "rev-parse", "HEAD"], { windowsHide: true },
+      (e, out) => r(e ? "" : out.trim())));
+    const table = (rows) => ["| What got done | Proof |", "|---|---|", ...rows.map(([w, p]) => `| ${w} | ${p} |`), ""];
+    fs.writeFileSync(path.join(full, WORKLOG), ["# Work log", "",
+      "## 2026-01-05", "", ...table([["Counted the words in a file", `\`commit ${head.slice(0, 10)}\``], ["Wrote the state note", "file STATE.md"],
+        ["The unit tests pass", "check unit tests"]]),
+      "## 2026-01-07", "", ...table([["Fixed the counter", "commit 0123456789abcdef0123456789abcdef01234567"]]),
+      "## 2026-13-01", "", ...table([["A day that does not exist", "file STATE.md"]]),
+      "## 2026-02-02", "", ...table([["Added a flag", `commit ${head}`]])].join("\n"));
     const filled = await runNode(["--project", full, "--check"]);
     if (/git did not answer within/.test(filled)) throw new Error("git was too slow for the Git panel's read (the machine is busy)");
     const notFilled = filled.split("\n").filter((l) => /^\s+(EMPTY|PARTLY)\s/.test(l) && !/\sQuestions\s/.test(l))
@@ -1202,6 +1314,21 @@ async function selfTest() {
     if (found("") !== now.questions.map((x) => x.id).join(",")) missed.push("an empty search does not show every question");
     row("a search finds a question by its id, its title or its text, whatever the case", !missed.length,
       missed.length ? missed.join("; ") : "by id, title and text, each the one question; an empty search shows all");
+
+    // the work log: rollups counted from the day sections; a day with no section is no entry; a proof holds only if it exists
+    const wl = JSON.parse((await request(port, "GET", "/api/worklog")).text);
+    const wk = (wl.weeks || []).find((w) => w.start === "2026-01-05") || { days: [] };
+    const perDay = wk.days.map((d) => (d.entries === null ? "-" : d.entries)).join(" ");
+    row("a week's rollup is counted from its day sections, and a day with no section is no entry, never zero",
+      wk.entries === 4 && wk.daysWithWork === 2 && perDay === "3 - 1 - - - -" && (wl.weeks || []).length === 2 &&
+      (wl.problems || []).some((p) => /2026-13-01/.test(p)),
+      `week of 2026-01-05: ${wk.entries} entries on ${wk.daysWithWork} days, by day ${perDay}; ${(wl.weeks || []).length} week(s); ` +
+      `${(wl.problems || []).length} problem(s) named`);
+    const jan = (wl.months || []).find((m) => m.month === "2026-01") || {};
+    const feb = (wl.months || []).find((m) => m.month === "2026-02") || {};
+    row("a proof holds only when the commit or file it names exists; a check is named, not proven",
+      wk.proven === 2 && wk.failing === 1 && wk.named === 1 && jan.proven === 2 && jan.failing === 1 && feb.proven === 1,
+      `week: ${wk.proven} hold, ${wk.failing} do not, ${wk.named} named; January ${jan.proven}/${jan.failing}; February ${feb.proven} hold`);
 
     const pics = (q("Q-006").pictures || []);
     const shot = await request(port, "GET", "/pictures/Q-006/home.png");

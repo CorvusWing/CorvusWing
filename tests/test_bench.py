@@ -35,6 +35,8 @@ EXPECTED_RED = {
     "keys-while-typing": "a key typed in a box, or with Ctrl, Alt or Cmd held, does nothing",
     "counts-from-old-list": "each tab's count comes from the list the cards come from, after an answer too, and says N of M while searching",
     "search-id-only": "a search finds a question by its id, its title or its text, whatever the case",
+    "missing-day-as-zero": "a week's rollup is counted from its day sections, and a day with no section is no entry, never zero",
+    "proof-unchecked": "a proof holds only when the commit or file it names exists; a check is named, not proven",
 }
 
 

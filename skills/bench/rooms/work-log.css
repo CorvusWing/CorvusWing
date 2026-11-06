@@ -1,0 +1,14 @@
+.wtabs { display: flex; gap: 8px; margin: 12px 0 4px }
+.wtab.on { border-color: var(--v1); background: rgba(139,92,246,.22) }
+.wday, .wweek, .wmonth { max-width: 760px }
+.wtable { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px }
+.wtable td { padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top }
+.wtable td:last-child { text-align: right; white-space: nowrap }
+.wproof { font-family: var(--mono); font-size: 11px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; display: inline-block }
+.wsum { margin: 6px 0 0; color: var(--muted); font-size: 13px }
+.wstrip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 10px }
+.wcell { border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px; text-align: center; background: var(--panel) }
+.wcell small { display: block; color: var(--faint); font-size: 11px }
+.wcell b { font-size: 15px }
+.wcell.none { border-style: dashed; background: transparent }
+.wcell.none b { font-size: 11px; font-weight: 400; color: var(--faint) }

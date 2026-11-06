@@ -80,6 +80,7 @@ node <this skill's folder>/shortcut.mjs --project <the project folder>
 | About CorvusWing | the kit's README.md, LICENSE and NOTICE.md (see Install in the README) | they are not beside the bench |
 | A room's tab | the room's `.js` file in the rooms folder | its tab says it could not be opened, and why |
 | Checks history (a room) | the gates ledger: every check's results, oldest to newest (the last 20), its newest and slowest time | there is no ledger yet; a check with no line at the ledger's newest commit reads "not run at" that commit; REFUSED is its own mark, never a pass or a fail |
+| Work log (a room) | WORKLOG.md's `## YYYY-MM-DD` sections, by day, week and month; for each proof, whether the commit (`git cat-file`) or file it names exists | WORKLOG.md is absent; a day with no section is "no entry", never zero; a heading that is not a real date is named; every total is counted from the sections, never read from the file |
 | Questions (a room) | QUESTIONS.md's `## Q-nnn` sections, their pictures in `.bench/pictures/Q-nnn/`, and INBOX.md for which are answered | QUESTIONS.md is absent; a question with fewer than two options, or not exactly one `(recommended)`, shows as "cannot be answered yet" with the reason |
 
 Rows that start with "Example:" are the templates' illustrations. The bench hides them and says how

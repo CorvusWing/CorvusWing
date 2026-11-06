@@ -50,6 +50,9 @@ If a document does not exist yet, start it from the templates in the start-here 
   changed, the measurement, what is still open.
 - **INBOX.md** (if the bench is in use): every message marked `waiting` is either answered now or
   carried into PICKUP.md's open state with an owner.
+- **WORKLOG.md** (if the bench is in use): today's `## YYYY-MM-DD` section, one row per thing that got
+  done, each with its proof (`commit <hash>`, `file <path>` or `check <name>`). Add to today's section
+  if it exists; never write a total, since the bench counts them.
 
 ## Step 2b: Archive what is finished, with a pointer
 
