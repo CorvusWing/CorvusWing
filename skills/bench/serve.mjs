@@ -396,7 +396,7 @@ function replyOf(status) {
 const PICTURES = path.join(".bench", "pictures");
 const PICTURE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpe?g|webp)$/i;
 const VERDICTS = { yes: "yes", no: "no", more: "say more" };
-const clicked = new Map(); // answered-from-click break only: what this launch was clicked, instead of what INBOX.md holds
+const clicked = new Set(); // answered-from-click break only: the INBOX.md message ids this launch's own clicks wrote
 
 function questionFields(id, title, body, line) {
   const field = {};
@@ -446,9 +446,10 @@ function readQuestions() {
     if (cur) cur.body.push(lines[i]);
   }
   const answers = new Map();
-  if (BREAK === "answered-from-click") for (const [id, a] of clicked) answers.set(id, a);
-  else {
+  {
     for (const m of inboxMessages()) {
+      // the break: only the messages this launch's own clicks wrote count, so an answer already in INBOX.md reads unanswered
+      if (BREAK === "answered-from-click" && !clicked.has(m.id)) continue;
       // a batch is ONE message with one answer line per question: every line is read, never only the first
       const lines = [...m.body.matchAll(ANSWER_LINE)];
       for (const a of BREAK === "batch-first-only" ? lines.slice(0, 1) : lines) {
@@ -782,7 +783,7 @@ const server = http.createServer(async (req, res) => {
       if (a.refused) return refuse(res, 400, a.refused);
       touch();
       const sent = appendInbox(a.text);
-      if (BREAK === "answered-from-click") clicked.set(`Pictures:${a.id}`, { choice: a.choice, message: sent.id, at: sent.at, status: "waiting" });
+      if (BREAK === "answered-from-click") clicked.add(sent.id);
       return json(res, 200, { ...sent, question: a.id, choice: a.choice });
     }
     if (req.method === "POST" && url.pathname === "/api/answer") {
@@ -793,7 +794,7 @@ const server = http.createServer(async (req, res) => {
       if (a.refused) return refuse(res, 400, a.refused);
       touch();
       const sent = appendInbox(a.text);
-      if (BREAK === "answered-from-click") clicked.set(`Answer:${a.id}`, { choice: a.choice, message: sent.id, at: sent.at, status: "waiting" });
+      if (BREAK === "answered-from-click") clicked.add(sent.id);
       return json(res, 200, { ...sent, question: a.id, choice: a.choice });
     }
     if (req.method === "POST" && url.pathname === "/api/answer-batch") {
@@ -803,7 +804,9 @@ const server = http.createServer(async (req, res) => {
       const a = batchText(body || {});
       if (a.refused) return refuse(res, 400, a.refused);
       touch();
-      return json(res, 200, { ...appendInbox(a.text), questions: a.ids });
+      const sent = appendInbox(a.text);
+      if (BREAK === "answered-from-click") clicked.add(sent.id);
+      return json(res, 200, { ...sent, questions: a.ids });
     }
     return refuse(res, 404, "Nothing here.");
   } catch (e) {
@@ -869,9 +872,7 @@ const SCRATCH_FILES = {
     "## Q-007 · Where the log goes", "", "The question: Where should the counter write its log?", "Options:",
     "1. To the screen -- nothing kept", "2. To a file (recommended) -- kept for a week", "",
     "## Q-008 · Numbers", "", "The question: Count numbers as words?", "Options:", "1. No (recommended)", "2. Yes", ""],
-  "INBOX.md": ["# INBOX", "", "## M-001 · 2026-01-01 09:00 · read 09:05", "", "Answer to Q-004: 1. As one (the recommended one)", "",
-    "## M-002 · 2026-01-01 10:00 · answered 10:10: Numbers are skipped now, in the counter's next commit", "",
-    "Answer to Q-008: 1. No (the recommended one)", ""],
+  "INBOX.md": ["# INBOX", "", "## M-001 · 2026-01-01 09:00 · read 09:05", "", "Answer to Q-004: 1. As one (the recommended one)", ""],
 };
 
 // The self-test's waits are generous, because a busy machine is slow, not wrong; anything that still fails to answer is a
@@ -1111,16 +1112,25 @@ async function selfTest() {
       added.includes("Answer to Q-001: 1. Keep them in a file") && nowAnswered && nowAnswered.answer,
       `HTTP ${click.code}; ${(added.match(/^## M-\d+ · /gm) || []).length} message(s) added; Q-001 ${nowAnswered && nowAnswered.answer ? "answered" : "not answered"}`);
 
-    // the agent's reply: "answered HH:MM: <line>" shows as the reply; "read HH:MM" as read, with no reply invented
-    const r8 = q("Q-008").answer || {}, r4 = q("Q-004").answer || {};
-    row("an agent's 'answered HH:MM: line' reads as its reply on the card, and 'read HH:MM' as read with no reply",
-      r8.reply === "Numbers are skipped now, in the counter's next commit" && r8.repliedAt === "10:10" && r4.readAt === "09:05" && !r4.reply,
-      `Q-008 reply: ${r8.reply || "none"}; Q-004 read at ${r4.readAt || "?"}, reply ${r4.reply || "none"}`);
     // Approve: the option marked (recommended), never the first one
-    await answer({ question: "Q-007", option: "recommended" });
+    const sent7 = JSON.parse((await answer({ question: "Q-007", option: "recommended" })).text || "{}");
     const approved = ((await questions()).find((x) => x.id === "Q-007") || {}).answer || {};
     row("Approve sends the option marked recommended, not the first one", /^2\. To a file/.test(approved.choice || ""),
       `Q-007 answered: ${approved.choice || "not answered"}`);
+    // the agent's reply: the self-test marks two of its own answers the way an agent does (bench SKILL.md, "Messages"): one
+    // "answered HH:MM: <line>", shown as the reply; one "read HH:MM", shown as read, with no reply invented
+    const sent8 = JSON.parse((await answer({ question: "Q-008", option: 1 })).text || "{}");
+    const mark = (id, status) => {
+      const f = path.join(full, INBOX);
+      fs.writeFileSync(f, fs.readFileSync(f, "utf8").replace(new RegExp(`^(## ${id} · [^\\n]*?) · waiting$`, "m"), `$1 · ${status}`));
+    };
+    mark(sent8.id, "answered 10:10: Numbers are skipped now, in the counter's next commit");
+    mark(sent7.id, "read 10:20");
+    const marked = await questions();
+    const r8 = (marked.find((x) => x.id === "Q-008") || {}).answer || {}, r7 = (marked.find((x) => x.id === "Q-007") || {}).answer || {};
+    row("an agent's 'answered HH:MM: line' reads as its reply on the card, and 'read HH:MM' as read with no reply",
+      r8.reply === "Numbers are skipped now, in the counter's next commit" && r8.repliedAt === "10:10" && r7.readAt === "10:20" && !r7.reply,
+      `Q-008 reply: ${r8.reply || "none"}; Q-007 read at ${r7.readAt || "?"}, reply ${r7.reply || "none"}`);
     // a batch: ONE message, every answer line in it read
     const batch = (answers) => request(port, "POST", "/api/answer-batch", { origin: own, key, body: JSON.stringify({ answers }) });
     const beforeBatch = fs.readFileSync(path.join(full, INBOX), "utf8");
