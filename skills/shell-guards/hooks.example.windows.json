@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "python \"$HOME/.claude/skills/shell-guards/scripts/heredoc_guard.py\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Monitor",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "python \"$HOME/.claude/skills/shell-guards/scripts/exit_status_guard.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

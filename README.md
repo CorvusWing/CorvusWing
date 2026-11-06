@@ -117,6 +117,7 @@ In the reply, the agent should name the parts it used; if it does not, ask.
 | `skills/test-freeze/` | Refuses a commit that changes or deletes an existing test without a `TEST-CHANGE:` reason. `scripts/test_freeze.py`: `check` over a range of commits, commit by commit or `--net`, and a self-test. |
 | `skills/decide-first/` | Makes a design question get its cancel line, a measurement and a decision with a reason, in that order, before code. `scripts/decide_first.py`: `open`, `probe`, `decide`, `check`, and a self-test. |
 | `skills/bake-off/` | Builds a piece nobody has designed, in a fixed order: frozen rules, a dumb control, candidates on their own branches with kill lines, a scoreboard, a pick. `scripts/bake_off.py`: `check`, `scoreboard`, and a self-test. |
+| `skills/shell-guards/` | Two hooks that refuse shell commands which fail without saying so: a heredoc holding a backslash (or a Python with nothing to read), and an exit code logged after `$(date)`, which is `date`'s and not the run's. `scripts/heredoc_guard.py`, `scripts/exit_status_guard.py` (with `--scan` for files), a settings example to paste, and a self-test each. Optional: they work only once switched on. |
 | `tests/` | The kit's own tests, in Python's standard `unittest`. Each script's self-test runs green, each of its breaks turns only its expected row red, and each script runs once end to end from the command line. The bench's self-test (`node skills/bench/serve.mjs --self-test`) starts the real server on scratch projects; its breaks are checked the same way. `.github/workflows/test.yml` runs them on Linux, macOS and Windows with Python 3.8 and 3.12, and the bench on Node 18. |
 | `templates/` | Short starting versions of the loop documents: PLAN, STATE, HANDOFF, DECISIONS, PICKUP, FILEMAP, ORDER, REPORT, LESSONS, QUESTIONS, AGENTS and CLAUDE, plus the archive's index (ARCHIVE-README). |
 | `LICENSE` | The MIT License. |
@@ -147,10 +148,12 @@ A skill is a folder with a SKILL.md file in it. Claude Code looks for skills in 
    templates there.
 4. Copy `README.md`, `LICENSE` and `NOTICE.md` into `.../skills/bench/about/`, so the bench's About
    tab can show them.
-5. Start a new Claude Code session so it picks up the skills. In recent versions, typing `/` lists
+5. Optional: switch on the two shell guards. They are hooks, not instructions, so copying the folder
+   is not enough: paste the settings example from `skills/shell-guards/SKILL.md` into your settings file.
+6. Start a new Claude Code session so it picks up the skills. In recent versions, typing `/` lists
    them (for example `/start-here`).
 
-The four scripts (`two-strikes`, `test-freeze`, `decide-first`, `bake-off`) need Python 3.8 or newer;
+The six scripts (`two-strikes`, `test-freeze`, `decide-first`, `bake-off`, and the two in `shell-guards`) need Python 3.8 or newer;
 `test-freeze` and `bake-off` also need git. They use no packages. Python is `python3` on macOS and Linux, and `python` on Windows.
 Once installed for every project, each script is at `~/.claude/skills/<skill>/scripts/`. Commit what they
 write into a project with the rest of its notes: `strikes.jsonl` (two-strikes), `decisions/` (decide-first)
@@ -232,7 +235,8 @@ Then, if the project has no single command that runs every check, run the `gates
 - **The model still varies.** The process around it is deterministic; the model is not, and will not
   be. The rails make its variation visible and recoverable, not absent.
 - These skills are instructions, not locks. An agent can still ignore them. The locks are git (you
-  can always go back) and your look at the diff (nothing merges unread).
+  can always go back), your look at the diff (nothing merges unread), and, once you switch them on,
+  the two shell guards, which refuse their two mistakes before the command runs.
 - Small tasks feel slow. They are faster. A 50-line change you can review in two minutes beats a
   2,000-line change you have to throw away.
 - Change anything here to fit how you work. The templates are starting points, not law.

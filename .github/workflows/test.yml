@@ -33,7 +33,8 @@ jobs:
         shell: bash
         run: |
           for script in test-freeze/scripts/test_freeze.py two-strikes/scripts/two_strikes.py \
-                        decide-first/scripts/decide_first.py bake-off/scripts/bake_off.py; do
+                        decide-first/scripts/decide_first.py bake-off/scripts/bake_off.py \
+                        shell-guards/scripts/heredoc_guard.py shell-guards/scripts/exit_status_guard.py; do
             uv run --no-project --python ${{ matrix.python }} python "skills/$script" --self-test
           done
       - name: The bench's self-test

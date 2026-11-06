@@ -252,6 +252,11 @@ If the developer agrees, add permission deny rules for the never-touch paths in
 `.claude/settings.json` (the scope-guard skill shows the shape). Explain that a deny rule is
 a fence, not a lock, and that the real lock is looking at the diff before merging.
 
+Then offer the two shell guards (the shell-guards skill): hooks that refuse a heredoc holding a
+backslash and an exit code logged after `$(date)`. Say in one sentence what each catches, ask
+first, and only on a yes add the settings example from that skill to the settings file, merging
+with any `"hooks"` already there. Then have the developer watch one refusal, so they know it works.
+
 ### Step 6: Hold the commit
 
 Do not commit yet. The plan and the first task come next (Parts 3 and 4), and everything is
