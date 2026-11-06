@@ -101,6 +101,7 @@ textarea { width: 100%; min-height: 78px; resize: vertical; background: rgba(0,0
 .msg:first-child { margin-top: 12px }
 .msg .st { font: 10.5px var(--mono); color: var(--faint); text-align: right; white-space: nowrap }
 .msg .st.waiting { color: var(--warn) } .msg .st.read, .msg .st.answered { color: var(--chipok) }
+.msg .msgbody { white-space: pre-line }
 .msg .when { grid-column: 1 / -1; font: 10.5px var(--mono); color: var(--faint) }
 .msg .reply { grid-column: 1 / -1; color: var(--muted); font-size: 12.5px }
 .msg .reply::before { content: "\2192  " }
@@ -341,8 +342,11 @@ function renderInbox(ib) {
     const p = /^(\S+)(?:\s+(\d{1,2}:\d{2}))?:?\s*(.*)$/.exec(m.status) || [m.status, m.status, "", ""];
     const kind = p[1].toLowerCase();
     const row = el("div", "msg");
-    const body = m.body.length > 160 ? m.body.slice(0, 157) + "..." : m.body;
-    row.append(el("span", null, body), el("span", "st " + kind, [p[1], p[2]].filter(Boolean).join(" ")));
+    // each of the message's lines keeps its own line in the preview (an answer, its note, the next answer), blank lines dropped
+    const text = m.body.split("\n").map((l) => l.trim()).filter(Boolean).join("\n");
+    // "--" is one mark: a word joiner between its hyphens keeps a line from breaking inside it (display only)
+    const body = (text.length > 160 ? text.slice(0, 157) + "..." : text).replace(/--/g, "-⁠-");
+    row.append(el("span", "msgbody", body), el("span", "st " + kind, [p[1], p[2]].filter(Boolean).join(" ")));
     if (p[3]) row.append(el("span", "reply", p[3]));
     row.append(el("span", "when", `${m.id} · ${m.at}`));
     return row;
