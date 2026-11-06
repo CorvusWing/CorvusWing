@@ -79,6 +79,16 @@ class TestCounts(unittest.TestCase):
                     self.assertIn("`%s`" % p.name, method, "the PROPHET method table names no step for it")
                     self.assertIn("`skills/%s/`" % p.name, box, "What is in the box has no row for it")
 
+    def test_every_template_is_named_in_the_readme_row(self):
+        names = [p.name for p in (ROOT / "templates").iterdir() if p.is_file()]
+        self.assertEqual(release_counts.templates_unnamed((ROOT / "README.md").read_text(encoding="utf-8"), names), [])
+
+    def test_a_template_missing_from_the_row_is_found(self):
+        row = "| `templates/` | PLAN, STATE and AGENTS, plus the archive's index (ARCHIVE-README). |"
+        names = ["PLAN.md", "STATE.md", "AGENTS.template.md", "ARCHIVE-README.md", "WORKLOG.md", "README.md"]
+        # README must not be read as named inside ARCHIVE-README: a name counts only as a whole word
+        self.assertEqual(release_counts.templates_unnamed(row, names), ["README.md", "WORKLOG.md"])
+
     def test_the_counts_are_the_folders(self):
         have = release_counts.counts()
         self.assertEqual(have["skills"], len([p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file()]))

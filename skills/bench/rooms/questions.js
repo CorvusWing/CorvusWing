@@ -191,11 +191,13 @@ function card(q, redraw) {
     c.append(el("p", "qwhat", q.refused), el("p", "src", "The agent fixes this in QUESTIONS.md; the bench only reads it."));
     return c;
   }
-  if (q.what) c.append(el("p", "qwhat", q.what));
+  // "What it is: the counter ..." reads on after its label in the file; the card drops the label, so its sentence starts capitalized
+  if (q.what) c.append(el("p", "qwhat", q.what.charAt(0).toUpperCase() + q.what.slice(1)));
   c.append(el("p", "qask", q.question));
   if (q.pictures.length) c.append(tray(q, redraw));
   if (q.answer) {
     c.append(el("p", "qdone", `Your answer: ${q.answer.choice}`));
+    if (q.answer.note) c.append(el("p", "qsentnote", `Your note: ${q.answer.note}`));
     // the agent's reply is its own line in INBOX.md ("answered HH:MM: ..."); none is ever invented
     if (q.answer.reply) c.append(el("p", "qreply", `Reply, ${q.answer.repliedAt}: ${q.answer.reply}`));
     else if (q.answer.readAt) c.append(el("p", "src", `Read at ${q.answer.readAt}, no reply yet`));

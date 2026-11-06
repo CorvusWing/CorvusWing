@@ -54,6 +54,13 @@ def fill(text, have):
     return MARKER.sub(one, text), unknown
 
 
+def templates_unnamed(readme_text, names):
+    """The template files the README's `templates/` row does not name. A file is named by its name up to its first dot
+    (AGENTS.template.md is AGENTS), as a whole word. A README with no such row names none of them."""
+    row = next((l for l in readme_text.split("\n") if l.startswith("| `templates/` |")), "")
+    return sorted(n for n in names if not re.search(r"(?<![A-Za-z-])%s(?![A-Za-z-])" % re.escape(n.split(".")[0]), row))
+
+
 def disagreements(root=ROOT):
     """Each marker whose text is not the count, as (file, name, written, counted)."""
     have, out = counts(root), []

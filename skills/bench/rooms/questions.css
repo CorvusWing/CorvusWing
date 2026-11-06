@@ -31,6 +31,7 @@
 .qbatch .qnote { flex-basis: 100% }
 .qopt.plain.on { border-color: var(--v1); background: rgba(139,92,246,.22) }
 .qbatch button:disabled { opacity: .5; cursor: default }
+.qsentnote { margin: 4px 0 0; color: var(--muted); font-size: 13px; font-style: italic; max-width: 760px }
 .qtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 4px; max-width: 760px }
 .qtab.on { border-color: var(--v1); background: rgba(139,92,246,.22) }
 .qsearch { flex: 1 1 220px; min-width: 0; padding: 7px 12px; border-radius: 10px; border: 1px solid var(--line);

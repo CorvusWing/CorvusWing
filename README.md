@@ -119,7 +119,7 @@ In the reply, the agent should name the parts it used; if it does not, ask.
 | `skills/bake-off/` | Builds a piece nobody has designed, in a fixed order: frozen rules, a dumb control, candidates on their own branches with kill lines, a scoreboard, a pick. `scripts/bake_off.py`: `check`, `scoreboard`, and a self-test. |
 | `skills/shell-guards/` | Two hooks that refuse shell commands which fail without saying so: a heredoc holding a backslash (or a Python with nothing to read), and an exit code logged after `$(date)`, which is `date`'s and not the run's. `scripts/heredoc_guard.py`, `scripts/exit_status_guard.py` (with `--scan` for files), a settings example to paste, and a self-test each. Optional: they work only once switched on. |
 | `tests/` | The kit's own tests, in Python's standard `unittest`. Each script's self-test runs green, each of its breaks turns only its expected row red, and each script runs once end to end from the command line. The bench's self-test (`node skills/bench/serve.mjs --self-test`) starts the real server on scratch projects; its breaks are checked the same way. `.github/workflows/test.yml` runs them on Linux, macOS and Windows with Python 3.8 and 3.12, and the bench on Node 18. |
-| `templates/` | Short starting versions of the loop documents: PLAN, STATE, HANDOFF, DECISIONS, PICKUP, FILEMAP, ORDER, REPORT, LESSONS, QUESTIONS, AGENTS and CLAUDE, plus the archive's index (ARCHIVE-README). |
+| `templates/` | Short starting versions of the loop documents: PLAN, STATE, HANDOFF, DECISIONS, PICKUP, FILEMAP, ORDER, REPORT, LESSONS, QUESTIONS, WORKLOG, AGENTS and CLAUDE, plus the archive's index (ARCHIVE-README). |
 | `LICENSE` | The MIT License. |
 | `NOTICE.md` | What the license covers, and the names and marks it does not. |
 

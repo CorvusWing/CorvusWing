@@ -69,7 +69,7 @@ const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-e
   "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped",
   "refused-as-fail", "refused-as-pass", "missing-as-pass", "pill-missing-as-pass", "reply-blind", "batch-first-only",
   "batch-unchecked", "approve-first-option", "keys-off-by-one", "keys-while-typing", "counts-from-old-list",
-  "search-id-only", "missing-day-as-zero", "proof-unchecked"];
+  "search-id-only", "missing-day-as-zero", "proof-unchecked", "note-dropped"];
 // A fault, unlike a break, plants a failure the self-test must REFUSE on (exit 78, "could not look"), never print as rows.
 const FAULTS = ["git-denied", "git-index-held", "get-dropped"];
 const BREAK = arg("--break", "");
@@ -454,10 +454,14 @@ function readQuestions() {
       if (BREAK === "answered-from-click" && !clicked.has(m.id)) continue;
       // a batch is ONE message with one answer line per question: every line is read, never only the first
       const lines = [...m.body.matchAll(ANSWER_LINE)];
-      for (const a of BREAK === "batch-first-only" ? lines.slice(0, 1) : lines) {
+      lines.forEach((a, k) => {
+        if (BREAK === "batch-first-only" && k > 0) return;
         const verdicts = a[1] === "Pictures" ? [...m.body.matchAll(/^- (\S+): (.*)$/gm)].map((v) => ({ file: v[1], verdict: v[2].trim() })) : null;
-        answers.set(`${a[1]}:${a[2]}`, { choice: a[3].trim(), verdicts, message: m.id, at: m.at, status: m.status, ...replyOf(m.status) });
-      }
+        // the developer's own note sent with this answer: the "Note:" line between this answer's line and the next one's
+        const own = m.body.slice(a.index + a[0].length, k + 1 < lines.length ? lines[k + 1].index : undefined);
+        const note = BREAK === "note-dropped" ? "" : ((/^Note: (.+)$/m.exec(own) || [])[1] || "").trim();
+        answers.set(`${a[1]}:${a[2]}`, { choice: a[3].trim(), note, verdicts, message: m.id, at: m.at, status: m.status, ...replyOf(m.status) });
+      });
     }
   }
   // a question titled "Example: ..." is the template's illustration, hidden like the tables' "Example:" rows, and counted
@@ -1263,6 +1267,10 @@ async function selfTest() {
     row("a batch of answers is one message, and every answer in it reads as answered",
       sentBatch.code === 200 && (batchAdded.match(/^## M-\d+ · /gm) || []).length === 1 && /^2\. Keep them in memory/.test(c1) && /^1\. To the screen/.test(c7),
       `HTTP ${sentBatch.code}; ${(batchAdded.match(/^## M-\d+ · /gm) || []).length} message(s); Q-001 ${c1 || "?"}; Q-007 ${c7 || "?"}`.slice(0, 200));
+    const n1 = ((afterBatch.find((x) => x.id === "Q-001") || {}).answer || {}).note;
+    const n7 = ((afterBatch.find((x) => x.id === "Q-007") || {}).answer || {}).note;
+    row("an answer's own note is shown on its card, each answer in a batch with its own", n1 === "for now" && n7 === "",
+      `Q-001's note: ${n1 === undefined ? "none read" : JSON.stringify(n1)}; Q-007's: ${n7 === undefined ? "none read" : JSON.stringify(n7)}`);
     const beforeBad = fs.readFileSync(path.join(full, INBOX), "utf8");
     const badBatch = [];
     for (const [answers, what] of [[[], "an empty batch"], [[{ question: "Q-001", option: 1 }, { question: "Q-999", option: 1 }], "a batch naming an unknown question"],

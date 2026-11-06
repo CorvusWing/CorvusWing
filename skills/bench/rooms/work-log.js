@@ -38,9 +38,22 @@ function counts(r) {
   return parts.join(" · ");
 }
 
+// The newest day's week and month, as the bench counted them: shown above the days so a day is read beside its totals.
+function totals(d) {
+  const newest = d.days[0].date;
+  const week = d.weeks.find((w) => w.days.some((x) => x.date === newest));
+  const month = d.months.find((m) => m.month === newest.slice(0, 7));
+  const box = el("div", "wtotals");
+  if (week) box.append(el("div", "wtotal", null));
+  if (week) box.lastChild.append(el("span", "eyebrow", `Week of ${week.start}`), el("p", "wsum", counts(week)));
+  if (month) box.append(el("div", "wtotal", null));
+  if (month) box.lastChild.append(el("span", "eyebrow", `Month ${month.month}`), el("p", "wsum", counts(month)));
+  return box;
+}
+
 function dayView(d) {
   if (!d.days.length) return [absent("WORKLOG.md has no day sections yet.")];
-  return d.days.map((day) => {
+  return [totals(d), ...d.days.map((day) => {
     const c = el("section", "card wday");
     c.append(el("span", "eyebrow", day.date));
     const t = el("table", "wtable");
@@ -53,7 +66,7 @@ function dayView(d) {
     }
     c.append(day.entries.length ? t : el("p", "src", "a section with no rows"));
     return c;
-  });
+  })];
 }
 
 function weekView(d) {

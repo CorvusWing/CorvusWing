@@ -172,7 +172,8 @@ Each key calls its button's own handler, so a key can never do something its but
 
 **The reply comes back on the card.** When the agent marks the answer's message
 `answered HH:MM: <one line>`, that line shows on the card as the reply; `read HH:MM` shows as read with
-no reply yet. The bench never invents a reply.
+no reply yet. The bench never invents a reply. The note sent with an answer (its `Note:` line) shows on the
+answered card too, so the developer sees what they asked for beside what came back.
 
 **Pictures**: a question may list screenshots under `Pictures:`, saved in `.bench/pictures/Q-nnn/`
 (PNG, JPEG or WebP; the bench serves only those names, from only that folder). Each gets Yes, No and

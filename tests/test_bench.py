@@ -37,6 +37,7 @@ EXPECTED_RED = {
     "search-id-only": "a search finds a question by its id, its title or its text, whatever the case",
     "missing-day-as-zero": "a week's rollup is counted from its day sections, and a day with no section is no entry, never zero",
     "proof-unchecked": "a proof holds only when the commit or file it names exists; a check is named, not proven",
+    "note-dropped": "an answer's own note is shown on its card, each answer in a batch with its own",
 }
 
 
