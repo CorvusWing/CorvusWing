@@ -2,7 +2,81 @@
 // one button per option. A click sends one message to INBOX.md ("Answer to Q-nnn: ..."); the bench never edits QUESTIONS.md, and a
 // question reads answered only once INBOX.md holds its answer. Text always goes in as text, never as markup.
 
-const KEY = document.querySelector('meta[name="bench-key"]').content;
+// read when a message is sent, so the bench's self-test can import this file's key table and tab counts without a page
+const benchKey = () => document.querySelector('meta[name="bench-key"]').content;
+
+// For the bench's self-test only: it switches one rule below off to prove its row turns red. The page never sets it.
+export const TEST = { break: "" };
+
+// ---------------------------------------------------------------- keyboard keys: each calls its button's own handler
+export const KEYS = [
+  ["j", "next", "move to the next card"], ["k", "prev", "move to the previous card"],
+  ["a", "approve", "approve: the recommended choice"], ["1-9", "pick", "pick that numbered option"],
+  ["b", "batch", "turn Collect a batch on or off"], ["n", "note", "write a note on this card"],
+  ["/", "search", "search the questions"], ["?", "help", "show or hide this list"],
+];
+
+// The action a key stands for, or null. Nothing happens while the developer is typing in a box, or with a modifier held.
+export function keyAction(key, typing, modified = false) {
+  if ((typing && TEST.break !== "keys-while-typing") || modified) return null;
+  if (/^[1-9]$/.test(key)) return { act: "pick", n: Number(key) };
+  const hit = KEYS.find(([k]) => k === key);
+  return hit ? { act: hit[1] } : null;
+}
+
+// Runs a key: ctx.cards holds each card's own button handlers ({ approve, pick(n), note }), ctx.focus the focused card's place,
+// and ctx.page the page's own (setFocus, batch, search, help). Returns what was called, or null when the key does nothing here:
+// an Approve on a card with no recommendation, or a number no option carries, is never guessed.
+export function dispatch(key, typing, ctx, modified = false) {
+  const a = keyAction(key, typing, modified);
+  if (!a) return null;
+  const n = ctx.cards.length;
+  const here = ctx.cards[ctx.focus];
+  if (a.act === "next" || a.act === "prev") {
+    if (!n) return null;
+    const to = ctx.focus < 0 ? 0 : Math.min(n - 1, Math.max(0, ctx.focus + (a.act === "next" ? 1 : -1)));
+    ctx.page.setFocus(to);
+    return `focus ${to}`;
+  }
+  if (a.act === "batch" || a.act === "search" || a.act === "help") { ctx.page[a.act](); return a.act; }
+  if (!here) return null;
+  if (a.act === "pick") {
+    const pick = here.picks && here.picks.get(TEST.break === "keys-off-by-one" ? a.n + 1 : a.n);
+    if (!pick) return null;
+    pick();
+    return `pick ${a.n}`;
+  }
+  if (!here[a.act]) return null;
+  here[a.act]();
+  return a.act;
+}
+
+// ---------------------------------------------------------------- the tabs: every count from the list the cards come from
+const isWaiting = (q) => !q.refused && !q.answer;
+const TABS = [["waiting", "Waiting", isWaiting], ["answered", "Answered", (q) => Boolean(q.answer)], ["all", "All", () => true]];
+let firstCounts = null; // kept only for the self-test's break, which counts from the first list ever read
+
+// What a search matches: the id, the title and the text of the question, without regard to case.
+function matches(q, query) {
+  const want = query.trim().toLowerCase();
+  if (!want) return true;
+  const fields = TEST.break === "search-id-only" ? [q.id] : [q.id, q.title, q.what, q.question, ...(q.options || []).map((o) => o.text)];
+  return fields
+    .some((t) => typeof t === "string" && t.toLowerCase().includes(want));
+}
+
+// The cards one tab shows, and each tab's count: { shown, counts: { waiting: { n, of }, ... }, searching }. While a search is on,
+// n is how many of the tab's M questions match it ("N of M"); with no search, n and of are the same.
+export function tabView(questions, tab, query = "") {
+  const counts = {};
+  for (const [id, , keep] of TABS) {
+    const inTab = questions.filter(keep);
+    counts[id] = { n: inTab.filter((q) => matches(q, query)).length, of: inTab.length };
+  }
+  if (TEST.break === "counts-from-old-list") { firstCounts = firstCounts || counts; }
+  const keep = (TABS.find(([id]) => id === tab) || TABS[2])[2];
+  return { shown: questions.filter((q) => keep(q) && matches(q, query)), counts: firstCounts || counts, searching: Boolean(query.trim()) };
+}
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -26,7 +100,7 @@ async function send(q, option, note, status) {
   status.textContent = "Sending...";
   try {
     const r = await fetch("/api/answer", {
-      method: "POST", headers: { "Content-Type": "application/json", "X-Bench-Key": KEY },
+      method: "POST", headers: { "Content-Type": "application/json", "X-Bench-Key": benchKey() },
       body: JSON.stringify({ question: q.id, option, note: note.value }),
     });
     const d = await r.json();
@@ -88,7 +162,7 @@ function tray(q, redraw) {
     status.textContent = "Sending...";
     try {
       const r = await fetch("/api/pictures", {
-        method: "POST", headers: { "Content-Type": "application/json", "X-Bench-Key": KEY },
+        method: "POST", headers: { "Content-Type": "application/json", "X-Bench-Key": benchKey() },
         body: JSON.stringify({ question: q.id, verdicts: given, note: note.value }),
       });
       const d = await r.json();
@@ -147,17 +221,22 @@ function card(q, redraw) {
     }
     if (await send(q, option, note, status)) redraw();
   };
+  // each button's handler is also the one its key calls (KEYS above), so a key can never do something its button does not
+  const keys = { picks: new Map(), note: () => note.focus() };
   const rec = q.options.find((o) => o.recommended);
   if (rec) {
     const approve = el("button", "btn qopt qapprove", "Approve");
-    approve.title = `Takes the recommended choice: ${rec.n}. ${rec.text}`;
-    approve.addEventListener("click", () => pick("recommended", `${rec.n}. ${rec.text} (recommended)`));
+    approve.title = `Takes the recommended choice: ${rec.n}. ${rec.text} (key: a)`;
+    keys.approve = () => pick("recommended", `${rec.n}. ${rec.text} (recommended)`);
+    approve.addEventListener("click", keys.approve);
     buttons.append(approve);
   }
   for (const o of opts) {
     const b = el("button", o.recommended ? "btn qopt" : "qopt plain", `${o.n}. ${o.text}`);
     if (o.recommended) b.append(el("span", "qrec", "recommended"));
-    b.addEventListener("click", () => pick(o.n, `${o.n}. ${o.text}`));
+    const choose = () => pick(o.n, `${o.n}. ${o.text}`);
+    if (o.n >= 1 && o.n <= 9) keys.picks.set(o.n, choose);
+    b.addEventListener("click", choose);
     buttons.append(b);
   }
   const ask = el("button", "qopt plain qask-first", "Ask me first");
@@ -165,8 +244,10 @@ function card(q, redraw) {
   buttons.append(ask);
   if (BATCH.items.has(q.id)) { status.textContent = `In the batch: ${BATCH.items.get(q.id).label}`; }
   c.append(buttons, note, status);
+  HANDLERS.set(c, keys);
   return c;
 }
+const HANDLERS = new WeakMap(); // card element -> its buttons' handlers; only cards still waiting for an answer have them
 
 // The batch lives in this page only (a reload empties it, and the bar says so); nothing is written until "Send batch", which sends
 // ONE message holding every saved answer. The server checks each answer and refuses the whole batch if any one would be refused.
@@ -186,14 +267,16 @@ function batchBar(redraw) {
     clear.disabled = !BATCH.items.size;
   };
   BATCH.changed = paint;
-  toggle.addEventListener("click", () => { BATCH.on = !BATCH.on; paint(); });
+  BATCH.toggle = () => { BATCH.on = !BATCH.on; paint(); };
+  toggle.title = "key: b";
+  toggle.addEventListener("click", BATCH.toggle);
   clear.addEventListener("click", () => { BATCH.items.clear(); paint(); redraw(); });
   go.addEventListener("click", async () => {
     say.className = "qnote";
     say.textContent = "Sending...";
     try {
       const r = await fetch("/api/answer-batch", {
-        method: "POST", headers: { "Content-Type": "application/json", "X-Bench-Key": KEY },
+        method: "POST", headers: { "Content-Type": "application/json", "X-Bench-Key": benchKey() },
         body: JSON.stringify({ answers: [...BATCH.items.values()].map(({ question, option, note }) => ({ question, option, note })) }),
       });
       const d = await r.json();
@@ -211,24 +294,93 @@ function batchBar(redraw) {
   return bar;
 }
 
+// The room's own view state: which tab, what search, which card has the keyboard. Kept across redraws, lost on a reload.
+const VIEW = { tab: "waiting", query: "", focus: -1, list: [] };
+let keysBound = false;
+let ROOM = null;
+
+function tabBar(counts, searching, redraw) {
+  const bar = el("div", "qtabs");
+  for (const [id, label] of TABS) {
+    const c = counts[id];
+    const b = el("button", "qopt plain qtab" + (VIEW.tab === id ? " on" : ""), `${label} (${searching ? `${c.n} of ${c.of}` : c.of})`);
+    b.addEventListener("click", () => { VIEW.tab = id; VIEW.focus = -1; redraw(); });
+    bar.append(b);
+  }
+  const search = el("input", "qsearch");
+  search.type = "search";
+  search.placeholder = "Search id, title or text (key: /)";
+  search.value = VIEW.query;
+  search.addEventListener("input", () => { VIEW.query = search.value; VIEW.focus = -1; redraw(true); });
+  bar.append(search);
+  return { bar, search };
+}
+
+function keyHelp() {
+  const box = el("div", "card qhelp");
+  box.hidden = true;
+  box.append(el("p", "eyebrow", "Keys (never while typing in a box)"));
+  const list = el("dl");
+  for (const [k, , what] of KEYS) list.append(el("dt", null, k), el("dd", null, what));
+  box.append(list);
+  return box;
+}
+
 export async function mount(view) {
   stylesheet();
+  const help = keyHelp();
+  let search = null;
+  const setFocus = (i) => {
+    VIEW.focus = i;
+    VIEW.list.forEach((c, n) => c.classList.toggle("qfocus", n === i));
+    if (VIEW.list[i]) VIEW.list[i].scrollIntoView({ block: "nearest" });
+  };
+  let data = null;
+  const paint = () => {
+    const order = (q) => (q.refused ? 1 : q.answer ? 2 : 0);
+    const v = tabView([...data.questions].sort((a, b) => order(a) - order(b)), VIEW.tab, VIEW.query);
+    const head = el("p", "src", `QUESTIONS.md · ${data.waiting} waiting, ${data.answered} answered` +
+      (data.refused ? `, ${data.refused} that cannot be answered yet` : "") + " · a click writes one message to INBOX.md · ? for keys");
+    const tabs = tabBar(v.counts, v.searching, (keepSearch) => { paint(); if (keepSearch) ROOM.page.search(); });
+    search = tabs.search;
+    const cards = v.shown.map((q) => card(q, draw));
+    VIEW.list = cards.filter((c) => HANDLERS.has(c));
+    const none = !data.questions.length ? "QUESTIONS.md holds no questions."
+      : v.searching ? "No question in this tab matches the search." : "No question in this tab.";
+    view.replaceChildren(head, bar, tabs.bar, help, ...(cards.length ? cards : [absent(none)]));
+    if (VIEW.focus >= 0) setFocus(Math.min(VIEW.focus, VIEW.list.length - 1));
+  };
   const draw = async () => {
-    let d;
     try {
       const r = await fetch("/api/questions", { cache: "no-store" });
-      d = await r.json();
+      data = await r.json();
     } catch (e) {
       view.replaceChildren(absent(`The questions could not be read: ${e.message}`));
       return;
     }
-    if (d.absent) { view.replaceChildren(absent(d.absent)); return; }
-    const head = el("p", "src", `QUESTIONS.md · ${d.waiting} waiting, ${d.answered} answered` +
-      (d.refused ? `, ${d.refused} that cannot be answered yet` : "") + " · a click writes one message to INBOX.md");
-    const order = (q) => (q.refused ? 1 : q.answer ? 2 : 0);
-    const cards = [...d.questions].sort((a, b) => order(a) - order(b)).map((q) => card(q, draw));
-    view.replaceChildren(head, bar, ...(cards.length ? cards : [absent("QUESTIONS.md holds no questions.")]));
+    if (data.absent) { view.replaceChildren(absent(data.absent)); data = null; return; }
+    paint();
   };
   const bar = batchBar(() => draw());
+  // the latest mount is the one the keys reach; the listener is added once, however often the room is opened
+  ROOM = {
+    view, ready: () => Boolean(data),
+    page: {
+      setFocus, batch: () => BATCH.toggle(), help: () => { help.hidden = !help.hidden; },
+      search: () => { if (search) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); } },
+    },
+  };
+  if (!keysBound) {
+    keysBound = true;
+    document.addEventListener("keydown", (e) => {
+      const room = ROOM;
+      if (!room || !room.view.isConnected || room.view.offsetParent === null || !room.ready()) return; // this room on screen only
+      const t = e.target;
+      const typing = Boolean(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)));
+      const did = dispatch(e.key, typing, { cards: VIEW.list.map((c) => HANDLERS.get(c)), focus: VIEW.focus, page: room.page },
+        e.ctrlKey || e.metaKey || e.altKey);
+      if (did) e.preventDefault(); // "/" and "n" would otherwise type their own letter into the box they just focused
+    });
+  }
   await draw();
 }

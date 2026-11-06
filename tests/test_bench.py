@@ -31,6 +31,10 @@ EXPECTED_RED = {
     "batch-first-only": "a batch of answers is one message, and every answer in it reads as answered",
     "batch-unchecked": "a batch with an unknown question, a question twice, or nothing in it is refused, and nothing is written",
     "approve-first-option": "Approve sends the option marked recommended, not the first one",
+    "keys-off-by-one": "each key calls its own button's handler; Approve with no recommendation, or a number no option has, does nothing",
+    "keys-while-typing": "a key typed in a box, or with Ctrl, Alt or Cmd held, does nothing",
+    "counts-from-old-list": "each tab's count comes from the list the cards come from, after an answer too, and says N of M while searching",
+    "search-id-only": "a search finds a question by its id, its title or its text, whatever the case",
 }
 
 

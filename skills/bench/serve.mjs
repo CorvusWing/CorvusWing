@@ -29,7 +29,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { execFile, spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOST = "127.0.0.1";
@@ -67,7 +67,8 @@ const SELF_TEST_CHILD = process.argv.includes("--self-test-child"); // a bench t
 const BREAKS = ["no-host-check", "no-origin-check", "no-key-check", "room-path-escape", "second-write",
   "two-recommended-shown", "answered-from-click", "answer-any-option", "picture-path-escape", "missing-as-blank", "verdict-dropped",
   "refused-as-fail", "refused-as-pass", "missing-as-pass", "pill-missing-as-pass", "reply-blind", "batch-first-only",
-  "batch-unchecked", "approve-first-option"];
+  "batch-unchecked", "approve-first-option", "keys-off-by-one", "keys-while-typing", "counts-from-old-list",
+  "search-id-only"];
 // A fault, unlike a break, plants a failure the self-test must REFUSE on (exit 78, "could not look"), never print as rows.
 const FAULTS = ["git-denied", "git-index-held", "get-dropped"];
 const BREAK = arg("--break", "");
@@ -919,6 +920,14 @@ function snapshot(dir) {
 }
 const changed = (a, b) => [...new Set([...a.keys(), ...b.keys()])].filter((k) => a.get(k) !== b.get(k)).sort();
 
+// A room file as a module, for the self-test to call its exported functions. The copy is named .mjs because Node 18 reads a .js
+// file outside a package as CommonJS; the copy is the room's own bytes, so what is checked is what the page loads.
+async function importRoom(name, tmp) {
+  const copy = path.join(tmp, `room-${name.replace(/\.js$/, "")}.mjs`);
+  fs.copyFileSync(path.join(HERE, "rooms", name), copy);
+  return import(pathToFileURL(copy).href);
+}
+
 // One request to the scratch bench; it rejects (could not look) when the bench does not answer at all. A GET whose connection
 // is dropped (on Windows a loopback connection is sometimes reset under load) is tried again, at most three times in all, waits
 // of 0.5 s and 1 s; a POST is never repeated, since it may have written. The get-dropped fault plants a lasting drop to prove
@@ -1152,6 +1161,47 @@ async function selfTest() {
     if (fs.readFileSync(path.join(full, INBOX), "utf8") !== beforeBad) badBatch.push("INBOX.md changed");
     row("a batch with an unknown question, a question twice, or nothing in it is refused, and nothing is written", !badBatch.length,
       badBatch.length ? badBatch.join("; ") : "three batches, each refused; INBOX.md unchanged");
+
+    // the Questions room's own keys and tabs, read from the room's file itself (no browser): each key calls its button's handler
+    const room = await importRoom("questions.js", tmp);
+    room.TEST.break = BREAK;
+    const calls = [];
+    const page = { setFocus: (i) => calls.push(`focus ${i}`), batch: () => calls.push("batch"), search: () => calls.push("search"),
+      help: () => calls.push("help") };
+    const handlers = (name, rec) => ({ approve: rec ? () => calls.push(`${name} approve`) : undefined, note: () => calls.push(`${name} note`),
+      picks: new Map([1, 2, 3].map((n) => [n, () => calls.push(`${name} pick ${n}`)])) });
+    const ctx = { cards: [handlers("c0", true), handlers("c1", false)], focus: -1, page };
+    const wantKeys = [["j", -1, "focus 0"], ["j", 0, "focus 1"], ["k", 1, "focus 0"], ["a", 0, "c0 approve"], ["2", 0, "c0 pick 2"],
+      ["n", 0, "c0 note"], ["b", 0, "batch"], ["/", 0, "search"], ["?", 0, "help"], ["a", 1, null], ["7", 0, null], ["x", 0, null]];
+    const keyWrong = [];
+    for (const [key, focus, want] of wantKeys) {
+      calls.length = 0;
+      ctx.focus = focus;
+      room.dispatch(key, false, ctx);
+      const got = calls[0] || null;
+      if (got !== want) keyWrong.push(`${key} on card ${focus}: ${got || "nothing"}, wanted ${want || "nothing"}`);
+    }
+    row("each key calls its own button's handler; Approve with no recommendation, or a number no option has, does nothing",
+      !keyWrong.length, keyWrong.length ? keyWrong.join("; ").slice(0, 200) : `${wantKeys.length} keys, each as its button`);
+    calls.length = 0;
+    ctx.focus = 0;
+    const typed = [room.dispatch("a", true, ctx), room.dispatch("j", true, ctx), room.dispatch("a", false, ctx, true)];
+    row("a key typed in a box, or with Ctrl, Alt or Cmd held, does nothing", typed.every((x) => x === null) && !calls.length,
+      `typing a, typing j, Ctrl+a: ${typed.map((x) => x || "nothing").join(", ")}`);
+    const now = JSON.parse((await request(port, "GET", "/api/questions")).text);
+    const v0 = room.tabView(qs, "waiting"), v1 = room.tabView(now.questions, "waiting"), s1 = room.tabView(now.questions, "all", "q-007");
+    const t0 = v0.counts, t1 = v1.counts;
+    row("each tab's count comes from the list the cards come from, after an answer too, and says N of M while searching",
+      t0.waiting.of === all.waiting && t1.waiting.of === now.waiting && t1.answered.of === now.answered && t0.waiting.of > t1.waiting.of &&
+      t1.all.of === now.questions.length && s1.counts.all.n === 1 && s1.counts.all.of === now.questions.length && s1.searching,
+      `waiting ${t0.waiting.of} then ${t1.waiting.of} (the bench: ${all.waiting} then ${now.waiting}); answered ${t1.answered.of} ` +
+      `(${now.answered}); searching q-007: ${s1.counts.all.n} of ${s1.counts.all.of}`);
+    const found = (query) => room.tabView(now.questions, "all", query).shown.map((x) => x.id).join(",");
+    const searches = [["q-008", "Q-008"], ["WHERE THE LOG", "Q-007"], ["totals in memory", "Q-001"]];
+    const missed = searches.filter(([query, want]) => found(query) !== want).map(([query, want]) => `${query}: ${found(query) || "none"}, wanted ${want}`);
+    if (found("") !== now.questions.map((x) => x.id).join(",")) missed.push("an empty search does not show every question");
+    row("a search finds a question by its id, its title or its text, whatever the case", !missed.length,
+      missed.length ? missed.join("; ") : "by id, title and text, each the one question; an empty search shows all");
 
     const pics = (q("Q-006").pictures || []);
     const shot = await request(port, "GET", "/pictures/Q-006/home.png");

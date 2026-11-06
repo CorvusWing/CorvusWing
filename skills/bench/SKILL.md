@@ -161,6 +161,12 @@ clicks into saved picks instead of sends; **Send batch (N)** then writes ONE mes
 with an unknown question, a question twice, or nothing in it is refused whole, with nothing written. The
 batch lives in the page only, so a reload empties it.
 
+**Tabs and search.** Waiting (N), Answered (N) and All (N) are counted from the same list the cards come
+from; a search box matches a question's id, title or text, and while it is on each tab says "N of M".
+**Keys** (never while typing in a box, `?` shows the list): `j`/`k` move between cards, `a` approves,
+`1`-`9` pick that option, `b` turns Collect a batch on or off, `n` opens the note, `/` focuses search.
+Each key calls its button's own handler, so a key can never do something its button does not.
+
 **The reply comes back on the card.** When the agent marks the answer's message
 `answered HH:MM: <one line>`, that line shows on the card as the reply; `read HH:MM` shows as read with
 no reply yet. The bench never invents a reply.
