@@ -1,4 +1,4 @@
-![CorvusWing, a kit for coding agents: a deterministic process around a probabilistic model, for Claude Code and every coding agent that reads AGENTS.md. Beside it, the bench on an example project.](skills/bench/assets/readme-hero.png)
+![CorvusWing release 2, a kit for coding agents: a written rule drifts, a checked rule holds. A deterministic process around a probabilistic model, for Claude Code and every coding agent that reads AGENTS.md. Beside it, the bench on an example project.](skills/bench/assets/readme-hero.png)
 
 # CorvusWing
 
@@ -19,6 +19,31 @@ If your agents have been rewriting code you never asked them to touch, spending 
 to throw away, and leaving you no further along than months ago: that is a common pattern, and it is
 not a verdict on you. It mostly comes from a few missing brakes. Each one is small. This kit installs
 them.
+
+## New in release 2
+
+**A written rule drifts. A checked rule holds.** Release 1 wrote the rules down as skills. Release 2 adds
+scripts that refuse: when a rule is broken, the work stops and says why, in words. It also adds a fixed
+order for research, and new rooms on the bench.
+
+![The scripts that refuse: two-strikes stops a step when the same check fails twice in a row; test-freeze refuses a commit that changes, skips or deletes an existing test unless its message says why; decide-first makes a design question get its cancel line, a measurement and a decision before any code; shell-guards refuses shell commands that fail without saying so.](skills/bench/assets/readme-guards.png)
+
+**The scripts that refuse.** Four skills now come with a script that stops the work when their rule is
+broken: `two-strikes`, `test-freeze`, `decide-first` and `shell-guards`. Each script ships with its own
+self-test, so every refusal is proven to work.
+
+![The research step, in five steps: the test is sealed first; a deliberately bad version must fail it; each candidate writes its elimination line before it runs; side effects are listed, not failed; a person picks, never the builder.](skills/bench/assets/readme-research.png)
+
+**The research step.** For a piece nobody has designed yet, `bake-off` fixes the order. The test is sealed
+first. A deliberately bad version must fail it. Each candidate writes its elimination line before it runs.
+Side effects are listed, not failed. A person picks, never the builder.
+
+![The bench's new rooms on an example project: Questions, where a decision is one click; an answered question with the reply and its commit; the Work log, each day's work with its proof; and Checks history, each check's last 20 results.](skills/bench/assets/readme-rooms.png)
+
+**The bench, new rooms.** Questions, where a decision is one click and the answer comes back with the
+commit that holds it. The Work log, each day's work with its proof. Checks history, each check's last 20
+results at a glance. Each room reads a file in your project: QUESTIONS.md (answers go to INBOX.md),
+WORKLOG.md, and the checks ledger, .gates.jsonl.
 
 ## The PROPHET method
 
