@@ -215,7 +215,7 @@ SKILL.md together.
 
 ## The daily loop, in six steps
 
-![The daily loop in six steps around the notes every session reads first: arrive, pick one task, think first, order then branch, work then review, close; then the next session.](skills/bench/assets/readme-loop.png)
+![The loop, end to end. One track carries the work: six steps along its top (arrive, pick one task, think first, order then branch, work then review, close), with shell-guards around every step. The scripts that refuse hang at the steps they guard: decide-first at step 3, two-strikes and test-freeze at step 5. Beside step 3, the research step (bake-off) for a piece nobody has designed yet. At the center, the notes every session reads first, and the bench that shows them; a note left on the bench goes to INBOX.md, read at step 1. Along the bottom, the way back: the note is written (at Close, or at about 85% full), the summary or a new session keeps what was written down, and the next session tests the note before trusting it.](skills/bench/assets/readme-loop.png)
 
 1. **Arrive.** Paste PICKUP.md into a new session. The agent checks the notes against the repository
    first: `git status`, `git log -3`, and one test whose number the notes state. Then it reads any
